@@ -4,13 +4,13 @@ import React from "react";
 import type { PomodoroState } from "@/lib/usePomodoro";
 
 export default function TopbarPomodoro({ p }: { p: PomodoroState }) {
-  const { mode, running, mins, secs, isBreak, isIdle, startPause, skipBreak } = p;
-
-  // Hide when idle (no active or recently-finished session)
-  if (isIdle && !running && mode === "idle") return null;
+  const { mode, running, mins, secs, isBreak, startPause, skipBreak, sessions } = p;
 
   const dotColor = isBreak ? "#2d8a6e" : "#c53b40";
   const label = isBreak ? "Break" : "Focus";
+
+  // Always show the pomodoro widget — users should always see their progress/session count
+  if (!true) return null;
 
   return (
     <div className="topbar-pomodoro">

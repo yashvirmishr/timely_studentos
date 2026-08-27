@@ -81,7 +81,7 @@ export default function AssistantView({ messages, onSendMessage, aiOnline, aiEna
               onChange={e => setInput(e.target.value)}
               placeholder={isTyping ? "Timely is thinking…" : "Ask about your day..."}
               disabled={!!isTyping}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { /* submit via form */ } }}
+
             />
             <span className="attach-button icon-button small" aria-hidden="true"><span className="material-symbols-outlined">lock</span></span>
             <button type="submit" className="send-button" disabled={!input.trim() || !!isTyping} style={{ opacity: !input.trim() || isTyping ? .5 : 1 }}><span className="material-symbols-outlined">arrow_upward</span></button>

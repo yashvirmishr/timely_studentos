@@ -69,7 +69,12 @@ export default function AnalyticsView({ tasks, classes }: AnalyticsViewProps) {
           <p className="heading-subtitle">Your tracked academic rhythm · {weekLabel}</p>
         </div>
         <button className="text-button" onClick={() => {
-          const report = `Timely report\\n${weekLabel}\\n\\nTasks: ${completed}/${total} complete\\nEstimated study load: ${focusHours.toFixed(1)} hours\\nClasses tracked: ${classes.length}`;
+          const report = `Timely report
+${weekLabel}
+
+Tasks: ${completed}/${total} complete
+Estimated study load: ${focusHours.toFixed(1)} hours
+Classes tracked: ${classes.length}`;
           const blob = new Blob([report], { type: "text/plain" });
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
@@ -107,7 +112,7 @@ export default function AnalyticsView({ tasks, classes }: AnalyticsViewProps) {
         </div>
         <div className="analytics-card paper-card completion-card">
           <span className="section-kicker">Task rhythm</span>
-          <div className="ring-chart"><strong>{completionRate}<small>%</small></strong></div>
+          <div className="ring-chart" style={{ background: `conic-gradient(var(--blue) 0 ${completionRate}%, #e4e9e8 ${completionRate}% 100%)` }}><strong>{completionRate}<small>%</small></strong></div>
           <div>
             <h3>Completion rate</h3>
             <p>{completed} of {total} tracked tasks complete</p>

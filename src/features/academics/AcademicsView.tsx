@@ -34,7 +34,7 @@ export default function AcademicsView({ onOpenQuickAdd, tasks, subjects, academi
   const studyHours = studyMinutes >= 60 ? `${(studyMinutes / 60).toFixed(1)}h` : `${studyMinutes}m`;
 
   return (
-    <div>
+    <div className="academics-view">
       <div className="page-heading">
         <div>
           <p className="eyebrow">The bigger picture</p>

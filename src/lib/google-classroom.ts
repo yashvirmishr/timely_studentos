@@ -1,3 +1,13 @@
+import type {
+  GisGoogle,
+  GisTokenResponse,
+  GClassroomRawCourse,
+  GClassroomListCoursesResponse,
+  GClassroomRawCourseWork,
+  GClassroomListCourseWorkResponse,
+  GoogleApiError,
+} from "./google-types";
+
 // Google Classroom integration — OAuth 2.0 implicit flow + REST API.
 // Requires a Google Cloud project with the Classroom API enabled.
 // Create one at https://console.cloud.google.com/apis/credentials
@@ -76,10 +86,10 @@ export async function connectGoogleClassroom(clientId: string): Promise<string> 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Google sign-in timed out")), 120000);
 
-    const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+    const tokenClient = (window as unknown as GisGoogle).accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: "https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me.readonly email profile",
-      callback: (resp: any) => {
+      callback: (resp: GisTokenResponse) => {
         clearTimeout(timeout);
         if (resp.error) {
           reject(new Error(resp.error_description || resp.error));
@@ -113,18 +123,18 @@ async function apiRequest<T>(url: string): Promise<T> {
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error((err as any).error?.message || `Google API error ${resp.status}`);
+    throw new Error((err as GoogleApiError).error?.message || `Google API error ${resp.status}`);
   }
 
   return resp.json();
 }
 
 export async function fetchCourses(): Promise<ClassroomCourse[]> {
-  const data = await apiRequest<{ courses?: any[] }>("courses?courseStates=ACTIVE");
-  const courses = (data.courses || []).map((c: any) => ({
+  const data = await apiRequest<GClassroomListCoursesResponse>("courses?courseStates=ACTIVE");
+  const courses = (data.courses || []).map((c: GClassroomRawCourse) => ({
     id: c.id,
-    name: c.name,
-    section: c.section || undefined,
+    name: c.name || "Untitled",
+    section: c.section,
   }));
   localStorage.setItem(GOOGLE_COURSES_KEY, JSON.stringify(courses));
   return courses;
@@ -144,17 +154,17 @@ export async function fetchAssignments(courseIds?: string[]): Promise<ClassroomA
 
   for (const course of courses) {
     try {
-      const data = await apiRequest<{ courseWork?: any[] }>(
+      const data = await apiRequest<GClassroomListCourseWorkResponse>(
         `courses/${course.id}/courseWork?orderBy=dueDate desc`
       );
       for (const cw of data.courseWork || []) {
         allAssignments.push({
           id: cw.id,
-          title: cw.title,
+          title: cw.title || "Untitled assignment",
           courseId: course.id,
           courseName: course.name || `Course ${course.id}`,
-          dueDate: cw.dueDate
-            ? `${cw.dueDate.year}-${String(cw.dueDate.month).padStart(2, "0")}-${String(cw.dueDate.day).padStart(2, "0")}`
+          dueDate: cw.dueDate?.year
+            ? `${cw.dueDate.year}-${String(cw.dueDate.month ?? 1).padStart(2, "0")}-${String(cw.dueDate.day ?? 1).padStart(2, "0")}`
             : undefined,
           description: cw.description || undefined,
           state: cw.state || "PUBLISHED",

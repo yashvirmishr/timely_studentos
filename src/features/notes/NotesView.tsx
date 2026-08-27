@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Note, AddType } from "@/lib/types";
 import { chatWithLocalAi } from "@/lib/local-ai";
 
@@ -12,8 +13,8 @@ interface NotesViewProps {
   onOpenQuickAdd: (type: AddType, item?: Note) => void;
   noteAiTarget: Note | null;
   setNoteAiTarget: (note: Note | null) => void;
-  homeworkReview: any;
-  setHomeworkReview: (review: any) => void;
+  homeworkReview: Record<string, unknown> | null;
+  setHomeworkReview: (review: Record<string, unknown> | null) => void;
 }
 
 const SUBJECT_COLORS: Record<string, "yellow" | "blue" | "lilac" | "green" | "red"> = {
@@ -54,6 +55,8 @@ export default function NotesView({
   const [aiSummary, setAiSummary] = useState("");
   const [aiSummaryError, setAiSummaryError] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
+
+  const aiTrapRef = useFocusTrap(showAiModal);
 
   const filteredNotes = notes.filter(n => {
     const matchesSearch = !searchQuery || 
@@ -167,7 +170,7 @@ export default function NotesView({
       </div>
 
       {showAiModal && noteAiTarget && (
-        <div className="modal-backdrop" onClick={handleAiClose}>
+        <div className="modal-backdrop" ref={aiTrapRef as React.RefObject<HTMLDivElement>} onClick={handleAiClose}>
           <div className="modal ai-modal" role="dialog" aria-modal="true" aria-labelledby="noteAiTitle" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>

@@ -1,6 +1,15 @@
 // Gemini AI service — uses Google Generative Language API directly from the client.
 // No backend required. Key is stored locally in Zustand (persisted to localStorage).
 
+import type {
+  GeminiRawModel,
+  GeminiListModelsResponse,
+  GeminiGenerateContentRequest,
+  GeminiGenerateContentResponse,
+  GeminiContentPart,
+  GeminiErrorResponse,
+} from "./google-types";
+
 const DEFAULT_MODEL = "gemini-1.5-flash";
 
 export interface AiConfig {
@@ -69,10 +78,10 @@ export async function checkAiConnection(): Promise<{ ok: boolean; models?: strin
       if (resp.status === 403 || resp.status === 400) return { ok: false, error: `Key rejected (${resp.status}). Check the key, API access, and model permissions.` };
       return { ok: false, error: `Gemini error ${resp.status}: ${err.slice(0, 180)}` };
     }
-    const data = await resp.json();
+    const data: GeminiListModelsResponse = await resp.json();
     const models = (data.models || [])
-      .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
-      .map((m: any) => (m.name || "").replace("models/", ""))
+      .filter((m: GeminiRawModel) => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map((m: GeminiRawModel) => (m.name || "").replace("models/", ""))
       .filter(Boolean);
     if (!models.includes(config.model)) {
       const fallbackModel = models.find((model: string) => /flash/i.test(model)) || models[0];
@@ -109,11 +118,11 @@ export async function chatWithLocalAi(params: ChatParams): Promise<string> {
 
   // Gemini expects alternating user/model roles. Map our assistant -> model.
   const contents = history.map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
+    role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
     parts: [{ text: m.content }],
   }));
 
-  const body: any = {
+  const body: GeminiGenerateContentRequest = {
     contents,
     systemInstruction: { parts: [{ text: systemText }] },
     generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
@@ -133,7 +142,7 @@ export async function chatWithLocalAi(params: ChatParams): Promise<string> {
     if (resp.status === 400 || resp.status === 403) {
       let detail = "Check your Gemini API key, enabled API access, and selected model.";
       try {
-        const parsed = JSON.parse(errText);
+        const parsed: GeminiErrorResponse = JSON.parse(errText);
         detail = parsed?.error?.message || detail;
       } catch {}
       throw new Error(`Gemini rejected the request: ${detail}`);
@@ -141,8 +150,8 @@ export async function chatWithLocalAi(params: ChatParams): Promise<string> {
     throw new Error(`Gemini error (${resp.status}): ${errText.slice(0, 300)}`);
   }
 
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("")?.trim()
+  const data: GeminiGenerateContentResponse = await resp.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((p: GeminiContentPart) => p.text).join("")?.trim()
     || data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!text) throw new Error("Gemini returned an empty response.");
   return text;
@@ -192,8 +201,8 @@ export async function extractTimetable(file: File): Promise<ExtractedTimetable> 
     signal: AbortSignal.timeout(30000),
   });
   if (!resp.ok) throw new Error(`Gemini scan failed (${resp.status}).`);
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("").trim();
+  const data2: GeminiGenerateContentResponse = await resp.json();
+  const text = data2?.candidates?.[0]?.content?.parts?.map((p: GeminiContentPart) => p.text || "").join("").trim();
   if (!text) throw new Error("Gemini returned no timetable data.");
   return decodeJsonResponse(text);
 }

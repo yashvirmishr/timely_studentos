@@ -8,6 +8,7 @@ import type {
   ClassEvent,
   Task,
   Note,
+  FileItem,
   ChatMessage,
   AiConfig,
 } from "@/lib/types";
@@ -235,16 +236,17 @@ export default function AppPage() {
 
   const handleDeleteClass = useCallback(
     (id: string) => {
-      const cls = classes.find((c) => c.id === id);
+      const state = useTimelyStore.getState();
+      const cls = state.classes.find((c) => c.id === id);
       deleteClass(id);
-      setImportedClasses(importedClasses.filter((c) => c.id !== id));
+      setImportedClasses(state.importedClasses.filter((c) => c.id !== id));
       showToast(cls ? `${cls.subject} removed` : "Removed");
     },
-    [classes, importedClasses, deleteClass, setImportedClasses, showToast],
+    [deleteClass, setImportedClasses, showToast],
   );
 
   const handleAddNote = useCallback(
-    (note: any) => {
+    (note: Note) => {
       addNote(note);
       showToast("Note added to your library");
     },
@@ -252,7 +254,7 @@ export default function AppPage() {
   );
 
   const handleUpdateNote = useCallback(
-    (id: string, updates: any) => {
+    (id: string, updates: Partial<Note>) => {
       updateNote(id, updates);
       showToast("Note updated");
     },
@@ -268,7 +270,7 @@ export default function AppPage() {
   );
 
   const handleAddFile = useCallback(
-    (file: any) => {
+    (file: FileItem) => {
       addFile(file);
       showToast(`${file.name} added to Files`);
     },
@@ -515,12 +517,14 @@ export default function AppPage() {
   );
 
   const handleDismissImported = useCallback(() => {
-    const importedIds = new Set(importedClasses.map((cls) => cls.id));
-    importedClasses.forEach((cls) => {
-      if (importedIds.has(cls.id)) deleteClass(cls.id);
+    const state = useTimelyStore.getState();
+    state.importedClasses.forEach((cls) => {
+      if (state.classes.some((c) => c.id === cls.id)) {
+        deleteClass(cls.id);
+      }
     });
     setImportedClasses([]);
-  }, [deleteClass, importedClasses, setImportedClasses]);
+  }, [deleteClass, setImportedClasses]);
 
   const handleTaskImport = useCallback(
     (classroomTasks: Task[]) => {
@@ -551,6 +555,24 @@ export default function AppPage() {
     markAllNotificationsRead();
     showToast("All notifications marked as read");
   }, [markAllNotificationsRead, showToast]);
+
+  // Global keyboard shortcuts: Escape to close modals, Cmd/Ctrl+K for search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showQuickAdd) setShowQuickAdd(false);
+        else if (showImport) setShowImport(false);
+        else if (showSearch) setShowSearch(false);
+        else if (showNotifications) setShowNotifications(false);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showQuickAdd, showImport, showSearch, showNotifications]);
 
   return (
     <div

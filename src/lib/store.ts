@@ -2,32 +2,9 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Task, ClassEvent, Subject, Note, FileItem, ChatMessage } from "@/lib/types";
 
-export type ViewName = "home" | "schedule" | "academics" | "assistant" | "notes" | "files" | "analytics" | "profile";
-export type AddType = "task" | "event" | "note" | "exam";
-export type ScheduleTab = "week" | "day" | "agenda";
-export type AcademicFilter = "all" | "active" | "attention";
-
-export interface AiConfig {
-  apiKey: string;
-  model: string;
-  enabled: boolean;
-}
-
-export interface Preferences {
-  notifications: boolean;
-  theme: "paper" | "dark" | "light";
-  reduceMotion: boolean;
-  profileName: string;
-}
-
-export interface NotificationItem {
-  id: string;
-  tone: "red" | "blue" | "yellow" | "green";
-  icon: string;
-  title: string;
-  detail: string;
-  read: boolean;
-}
+// Re-export all types from the single source of truth
+export type { ViewName, AddType, ScheduleTab, AcademicFilter, AiConfig, Preferences, NotificationItem } from "@/lib/types";
+import type { ViewName, AddType, ScheduleTab, AcademicFilter, AiConfig, Preferences, NotificationItem } from "@/lib/types";
 
 interface TimelyState {
   currentView: ViewName;
@@ -49,7 +26,8 @@ interface TimelyState {
   importSource: string;
   importReview: ClassEvent[];
   importConfidence: number | null;
-  homeworkReview: any;
+  /** Placeholder for future homework-scan feature. */
+  homeworkReview: Record<string, unknown> | null;
   noteAiTarget: Note | null;
   editingId: string | null;
   // UI state (not persisted)
@@ -104,7 +82,7 @@ interface TimelyState {
   setImportSource: (source: string) => void;
   setImportReview: (classes: ClassEvent[]) => void;
   setImportConfidence: (conf: number | null) => void;
-  setHomeworkReview: (review: any) => void;
+  setHomeworkReview: (review: Record<string, unknown> | null) => void;
   setNoteAiTarget: (note: Note | null) => void;
 
   getTasksForSubject: (subject: string) => Task[];

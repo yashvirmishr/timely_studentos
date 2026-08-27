@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { AddType, Task, ClassEvent, Note } from "@/lib/types";
 
 interface QuickAddModalProps {
@@ -29,6 +30,14 @@ const TYPE_LABELS: Record<AddType, { title: string; placeholder: string }> = {
 const SUBJECTS = ["World History", "Advanced Calculus", "English Literature", "Art & Design", "Biology", "Other"];
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI"];
 const COLORS = ["lilac", "blue", "green", "yellow", "red"];
+const SUBJECT_COLORS: Record<string, "lilac" | "blue" | "green" | "yellow" | "red"> = {
+  "World History": "yellow",
+  "Advanced Calculus": "blue",
+  "English Literature": "lilac",
+  "Art & Design": "green",
+  "Biology": "blue",
+  "Other": "red",
+};
 
 export default function QuickAddModal({
   addType,
@@ -86,21 +95,36 @@ export default function QuickAddModal({
     const now = new Date();
     const ago = "JUST NOW";
 
-    if (addType === "task" || addType === "exam") {
+    if (addType === "task") {
       const task: Task = {
         id: isEditing ? editingId! : "t" + Date.now(),
         title: title.trim(),
         subject,
         due: due.toLowerCase(),
         time: `${estimate} min`,
-        priority: addType === "exam" ? "high" : priority,
+        priority: priority,
         completed: false,
         custom: true,
         notes: remind ? "Remind me the day before" : undefined,
       };
       if (isEditing) onUpdateTask(editingId!, task);
       else onAddTask(task);
-      onShowToast(`${addType === "exam" ? "Exam" : "Task"} ${isEditing ? "updated" : "added"} in Timely`);
+      onShowToast(`${isEditing ? "Task updated" : "Task added"} in Timely`);
+    } else if (addType === "exam") {
+      const task: Task = {
+        id: isEditing ? editingId! : "t" + Date.now(),
+        title: title.trim(),
+        subject,
+        due: due.toLowerCase(),
+        time: `${estimate} min`,
+        priority: "high",
+        completed: false,
+        custom: true,
+        notes: remind ? "Remind me the day before" : undefined,
+      };
+      if (isEditing) onUpdateTask(editingId!, task);
+      else onAddTask(task);
+      onShowToast(`${isEditing ? "Exam updated" : "Exam added"} in Timely`);
     } else if (addType === "event") {
       const cls: ClassEvent = {
         id: isEditing ? editingId! : "c" + Date.now(),
@@ -138,18 +162,11 @@ export default function QuickAddModal({
     onClose();
   };
 
-  const SUBJECT_COLORS: Record<string, "lilac" | "blue" | "green" | "yellow" | "red"> = {
-    "World History": "yellow",
-    "Advanced Calculus": "blue",
-    "English Literature": "lilac",
-    "Art & Design": "green",
-    "Biology": "blue",
-    "Other": "red",
-  };
-
   useEffect(() => {
     setColor(SUBJECT_COLORS[subject] || "blue");
   }, [subject]);
+
+  const trapRef = useFocusTrap(true);
 
   const renderFields = () => {
     switch (addType) {
@@ -280,7 +297,7 @@ export default function QuickAddModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) { setEditingId(null); onClose(); } }}>
+    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) { setEditingId(null); onClose(); } }}>
       <div className="modal quick-add-modal" role="dialog" aria-modal="true" aria-labelledby="qaTitle">
         <div className="modal-header">
           <div>

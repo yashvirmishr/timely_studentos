@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { ClassEvent } from "@/lib/types";
 import { TIMETABLE_SEED } from "@/lib/utils";
 import { extractTimetable } from "@/lib/local-ai";
@@ -30,6 +31,8 @@ export default function ImportModal({
   const [classes, setClasses] = useState<ClassEvent[]>([]);
   const [source, setSource] = useState(importSource);
   const [error, setError] = useState<string | null>(null);
+
+  const trapRef = useFocusTrap(true);
 
   useEffect(() => {
     setSource(importSource);
@@ -100,7 +103,7 @@ export default function ImportModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal import-modal" role="dialog" aria-modal="true">
         <div className="modal-header">
           <div>

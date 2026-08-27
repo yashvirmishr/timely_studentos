@@ -7,7 +7,9 @@
     "start": "next start",
     "lint": "next lint",
     "tauri": "tauri",
-    "tauri:signer": "tauri signer generate -w ~/.tauri/timely.key"
+    "tauri:signer": "tauri signer generate -w ~/.tauri/timely.key",
+    "test:e2e": "pytest tests/test_e2e_workflows.py -v --tb=short",
+    "test": "pytest tests/ -v --tb=short"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
@@ -29,7 +31,7 @@
     "typescript": "^5.5.0"
   },
   "license": "MIT",
-  "description": "Timely — An AI-powered academic operating system for students. Free and open source.",
+  "description": "Timely \u2014 An AI-powered academic operating system for students. Free and open source.",
   "keywords": [
     "student",
     "academic",

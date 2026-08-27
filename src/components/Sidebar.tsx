@@ -2,6 +2,7 @@
 
 import React from "react";
 import type { ViewName } from "@/lib/types";
+import { useTimelyStore } from "@/lib/store";
 
 interface SidebarProps {
   currentView: ViewName;
@@ -9,6 +10,14 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
+  const profileName = useTimelyStore((s) => s.preferences.profileName);
+  const initials = profileName
+    .split(" ")
+    .map((p: string) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   const NavButton = ({ view, icon, label }: { view: ViewName; icon: string; label: string }) => (
     <button
       className={`nav-item ${currentView === view ? "active" : ""}`}
@@ -31,10 +40,17 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      <div className="profile-card">
-        <div className="avatar">AV</div>
+      <div
+        className="profile-card"
+        style={{ cursor: "pointer" }}
+        onClick={() => onNavigate("profile")}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onNavigate("profile"); }}
+      >
+        <div className="avatar">{initials}</div>
         <div className="profile-copy">
-          <strong>Alex Vale</strong>
+          <strong>{profileName}</strong>
           <span>Year 12 · Spring term</span>
         </div>
         <button className="icon-button small" aria-label="Open profile">

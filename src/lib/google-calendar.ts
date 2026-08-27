@@ -1,3 +1,11 @@
+import type {
+  GisGoogle,
+  GisTokenResponse,
+  GCalRawEvent,
+  GCalListEventsResponse,
+  GoogleApiError,
+} from "./google-types";
+
 const GOOGLE_CALENDAR_TOKEN_KEY = "timely_google_calendar_token";
 const GOOGLE_CALENDAR_CLIENT_ID_KEY = "timely_google_calendar_client_id";
 
@@ -19,7 +27,7 @@ export function getGoogleCalendarConfig() {
 }
 
 function loadGoogleIdentity(): Promise<void> {
-  if ((window as any).google?.accounts?.oauth2) return Promise.resolve();
+  if ((window as unknown as GisGoogle).accounts?.oauth2) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
@@ -35,10 +43,10 @@ export async function connectGoogleCalendar(clientId: string) {
   localStorage.setItem(GOOGLE_CALENDAR_CLIENT_ID_KEY, clientId.trim());
   await loadGoogleIdentity();
   return new Promise<string>((resolve, reject) => {
-    const client = (window as any).google.accounts.oauth2.initTokenClient({
+    const client = (window as unknown as GisGoogle).accounts.oauth2.initTokenClient({
       client_id: clientId.trim(),
       scope: "https://www.googleapis.com/auth/calendar.readonly",
-      callback: (response: any) => {
+      callback: (response: GisTokenResponse) => {
         if (response.error) reject(new Error(response.error_description || response.error));
         else {
           localStorage.setItem(GOOGLE_CALENDAR_TOKEN_KEY, response.access_token);
@@ -76,16 +84,16 @@ export async function fetchGoogleCalendarEvents(timeMin: Date, timeMax: Date): P
     throw new Error("Google Calendar session expired. Please reconnect.");
   }
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
+    const body: GoogleApiError = await response.json().catch(() => ({}));
     throw new Error(body.error?.message || `Google Calendar error ${response.status}`);
   }
-  const data = await response.json();
-  return (data.items || []).filter((event: any) => event.start?.dateTime).map((event: any) => ({
+  const data: GCalListEventsResponse = await response.json();
+  return (data.items || []).filter((event: GCalRawEvent) => event.start?.dateTime).map((event: GCalRawEvent) => ({
     id: event.id,
     summary: event.summary || "Untitled event",
     description: event.description,
     location: event.location,
-    start: event.start.dateTime,
-    end: event.end.dateTime,
+    start: event.start.dateTime || "",
+    end: event.end.dateTime || "",
   }));
 }

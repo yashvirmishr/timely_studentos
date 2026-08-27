@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { ViewName, Task, ClassEvent, Note, FileItem } from "@/lib/types";
 
 interface SearchModalProps {
@@ -24,6 +25,8 @@ interface SearchResult {
 
 export default function SearchModal({ onClose, onNavigate, tasks, classes, notes, files }: SearchModalProps) {
   const [query, setQuery] = useState("");
+
+  const trapRef = useFocusTrap(true);
 
   const results = useMemo((): SearchResult[] => {
     if (!query.trim()) return [];
@@ -95,7 +98,7 @@ export default function SearchModal({ onClose, onNavigate, tasks, classes, notes
   }, [query, tasks, classes, notes, files]);
 
   return (
-    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal search-modal" role="dialog" aria-modal="true" aria-label="Search">
         <div className="search-modal-input" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <span className="material-symbols-outlined" style={{ color: '#777871' }}>search</span>

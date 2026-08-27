@@ -150,7 +150,7 @@ export default function ProfileView({
         <div className="settings-card paper-card profile-large">
           <div className="large-avatar avatar">{preferences.profileName.slice(0, 2).toUpperCase()}</div>
           <h2>{preferences.profileName}</h2>
-          <p>alex.vale@example.com</p>            <button className="text-button" onClick={() => document.getElementById("profileName")?.focus()}>Edit profile <span className="material-symbols-outlined">edit</span></button>
+          <p style={{ fontSize: 11, color: "#99968e" }}>Student · Spring 2024</p>            <button className="text-button" onClick={() => document.getElementById("profileName")?.focus()}>Edit profile <span className="material-symbols-outlined">edit</span></button>
           <div className="profile-divider" />
           <div className="term-row"><span>Current term</span><strong>Spring 2024 <span className="material-symbols-outlined">expand_more</span></strong></div>
         </div>
