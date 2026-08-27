@@ -1,0 +1,12 @@
+node_modules/
+*.local.md
+.next/
+out/
+__pycache__/
+*.log
+*.tsbuildinfo
+package-lock.json
+*.err
+*.log
+*.md
+References/
