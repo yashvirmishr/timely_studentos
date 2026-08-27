@@ -17,10 +17,12 @@ function getFileType(name: string): "pdf" | "doc" | "img" {
   return "doc";
 }
 
+const GB = 1024 * 1024 * 1024;
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / GB).toFixed(1)} MB`;
 }
 
 function formatDate(date: Date): string {
@@ -74,7 +76,7 @@ export default function FilesView({ files, onAddFile, onDeleteFile }: FilesViewP
     return acc + num;
   }, 0);
 
-  const usedPercent = Math.min(100, (totalSize / (5 * 1024 * 1024 * 1024)) * 100);
+  const usedPercent = Math.min(100, (totalSize / (5 * GB)) * 100);
 
   return (
     <div>

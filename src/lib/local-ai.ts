@@ -10,7 +10,7 @@ import type {
   GeminiErrorResponse,
 } from "./google-types";
 
-const DEFAULT_MODEL = "gemini-1.5-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20";
 
 export interface AiConfig {
   apiKey: string;
@@ -51,9 +51,16 @@ export function getConfig(): AiConfig {
 
 function normalizeModel(model?: string): string {
   const value = (model || "").trim().replace(/^models\//, "");
-  // Gemini model aliases can disappear from the API; use a currently supported
-  // stable model when an old/blank value is still in local storage.
-  if (!value || value === "gemini-2.0-flash" || value === "gemini-2.0-flash-001") return DEFAULT_MODEL;
+  // Gemini model aliases are deprecated or removed over time;
+  // use a currently supported model when an old/blank value is still in local storage.
+  const DEPRECATED = [
+    "gemini-1.0-pro", "gemini-1.0-pro-001", "gemini-1.0-pro-vision",
+    "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-vision",
+    "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002",
+    "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite",
+    "gemini-2.5-flash",
+  ];
+  if (!value || DEPRECATED.includes(value)) return DEFAULT_MODEL;
   return value;
 }
 
@@ -64,6 +71,20 @@ export function saveAiConfig(config: Partial<AiConfig>) {
   // also write legacy for checkAiConnection callers that read it directly
   try { localStorage.setItem("timely_ai_config", JSON.stringify(merged)); } catch {}
   return merged;
+}
+
+/** Fetch all available generateContent models for a given API key. */
+export async function listAvailableModels(apiKey: string): Promise<string[]> {
+  if (!apiKey) return [];
+  try {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`, { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return [];
+    const data: GeminiListModelsResponse = await resp.json();
+    return (data.models || [])
+      .filter((m: GeminiRawModel) => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map((m: GeminiRawModel) => (m.name || "").replace("models/", ""))
+      .filter(Boolean);
+  } catch { return []; }
 }
 
 export async function checkAiConnection(): Promise<{ ok: boolean; models?: string[]; error?: string }> {
@@ -107,6 +128,69 @@ export async function checkAiConnection(): Promise<{ ok: boolean; models?: strin
   }
 }
 
+/** Try to generate content with a specific model. Returns text on success, null on failure. */
+async function tryGenerate(
+  model: string,
+  body: GeminiGenerateContentRequest,
+  apiKey: string,
+): Promise<string | null> {
+  try {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(25000),
+      },
+    );
+    if (!resp.ok) return null;
+    const data: GeminiGenerateContentResponse = await resp.json();
+    const text =
+      data?.candidates?.[0]?.content?.parts?.map((p: GeminiContentPart) => p.text).join("")?.trim() ||
+      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch available text-only generateContent models for the given key. */
+async function discoverModels(apiKey: string): Promise<string[]> {
+  try {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    if (!resp.ok) return [];
+    const data: GeminiListModelsResponse = await resp.json();
+    const EXCLUDE = /image|tts|robotics|lyria|nano-banana|omni|computer-use|deep-research|antigravity|music/;
+    return (data.models || [])
+      .filter((m: GeminiRawModel) => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map((m: GeminiRawModel) => (m.name || "").replace("models/", ""))
+      .filter((m: string) => !EXCLUDE.test(m) && m.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/** Preferred fallback order: flash models first (cheapest, fastest), then pro. */
+const FALLBACK_PRIORITY = [
+  /gemini-2\.5-flash/, /gemini-3\.5-flash/, /gemini-3\.7-flash/,
+  /gemini-3-flash-lite/, /gemini-2\.5-flash-lite/, /gemini-3\.5-flash-lite/,
+  /gemini-3\.1-flash-lite/, /flash-latest/,
+  /gemini-2\.5-pro/, /gemini-3\.1-pro/, /pro-preview/,
+];
+
+function sortFallbackModels(models: string[], current: string): string[] {
+  const others = models.filter(m => m !== current);
+  return others.sort((a, b) => {
+    const ai = FALLBACK_PRIORITY.findIndex(p => p.test(a));
+    const bi = FALLBACK_PRIORITY.findIndex(p => p.test(b));
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+}
+
 export async function chatWithLocalAi(params: ChatParams): Promise<string> {
   const config = getConfig();
   if (!config.enabled) throw new Error("Gemini is disabled. Enable it in Settings → Profile.");
@@ -116,7 +200,6 @@ export async function chatWithLocalAi(params: ChatParams): Promise<string> {
   const systemText = params.messages.find(m => m.role === "system")?.content || buildContextPrompt();
   const history = params.messages.filter(m => m.role !== "system");
 
-  // Gemini expects alternating user/model roles. Map our assistant -> model.
   const contents = history.map(m => ({
     role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
     parts: [{ text: m.content }],
@@ -128,33 +211,29 @@ export async function chatWithLocalAi(params: ChatParams): Promise<string> {
     generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
   };
 
-  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(20000),
-  });
+  // 1. Try the selected model
+  let result = await tryGenerate(config.model, body, config.apiKey);
+  if (result) return result;
 
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => "Unknown error");
-    // Surface quota / key errors clearly
-    if (resp.status === 429) throw new Error("Gemini quota exceeded (429). Try again in a minute or check your billing.");
-    if (resp.status === 400 || resp.status === 403) {
-      let detail = "Check your Gemini API key, enabled API access, and selected model.";
-      try {
-        const parsed: GeminiErrorResponse = JSON.parse(errText);
-        detail = parsed?.error?.message || detail;
-      } catch {}
-      throw new Error(`Gemini rejected the request: ${detail}`);
+  // 2. Auto-fallback: discover available models and try them in priority order
+  const available = await discoverModels(config.apiKey);
+  const fallbacks = sortFallbackModels(available, config.model);
+
+  for (const model of fallbacks) {
+    result = await tryGenerate(model, body, config.apiKey);
+    if (result) {
+      // Persist the working model so future calls don't fail
+      saveAiConfig({ model });
+      return result;
     }
-    throw new Error(`Gemini error (${resp.status}): ${errText.slice(0, 300)}`);
   }
 
-  const data: GeminiGenerateContentResponse = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p: GeminiContentPart) => p.text).join("")?.trim()
-    || data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) throw new Error("Gemini returned an empty response.");
-  return text;
+  // 3. All models exhausted — surface a clear error
+  throw new Error(
+    available.length > 0
+      ? `All ${available.length} available models are unreachable. This is usually a temporary Gemini outage — try again in a minute.`
+      : "Could not reach Gemini. Check your API key and internet connection.",
+  );
 }
 
 export interface ExtractedTimetable {

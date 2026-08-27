@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import type { Task, AiConfig, Preferences } from "@/lib/types";
-import { checkAiConnection } from "@/lib/local-ai";
+import { checkAiConnection, listAvailableModels } from "@/lib/local-ai";
 import { connectGoogleClassroom, disconnectGoogle, fetchAssignments, getGoogleConfig } from "@/lib/google-classroom";
 import { connectGoogleCalendar, disconnectGoogleCalendar, getGoogleCalendarConfig } from "@/lib/google-calendar";
 
@@ -48,6 +48,22 @@ export default function ProfileView({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  // Mainstream text-only Gemini models (updated August 2026)
+  const FALLBACK_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.7-flash",
+    "gemini-3-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+  ];
 
   // Load saved GC client ID
   useEffect(() => {
@@ -121,12 +137,30 @@ export default function ProfileView({
     }
   }, [gcConnected, onTaskImport]);
 
+  // Filter to only text chat models (exclude image, tts, robotics, music, etc.)
+  const filterTextModels = (models: string[]) => {
+    const EXCLUDE = /image|tts|robotics|lyria|nano-banana|omni|computer-use|deep-research|antigravity|music/;
+    return models.filter(m => !EXCLUDE.test(m));
+  };
+
+  // Auto-fetch models when API key is entered
+  useEffect(() => {
+    if (aiConfig.apiKey && aiConfig.enabled && availableModels.length === 0) {
+      setModelsLoading(true);
+      listAvailableModels(aiConfig.apiKey).then(models => {
+        const filtered = filterTextModels(models);
+        if (filtered.length) setAvailableModels(filtered);
+        setModelsLoading(false);
+      });
+    }
+  }, [aiConfig.apiKey, aiConfig.enabled]);
+
   const handleTestAi = useCallback(async () => {
     setTesting(true);
     setTestResult(null);
     try {
       const result = await checkAiConnection();
-      if (result.models?.length) setAvailableModels(result.models);
+      if (result.models?.length) setAvailableModels(filterTextModels(result.models));
       setTestResult(result.ok ? `Connected to Gemini — ${result.models?.join(", ") || aiConfig.model}` : `Not reachable: ${result.error || "unknown"}`);
     } catch (e: any) {
       setTestResult(e?.message || "Connection failed. Check API key.");
@@ -251,20 +285,22 @@ export default function ProfileView({
               <div style={{marginTop: 8}}>
                 <label className="field-label">Model</label>
                 <select className="text-field" value={aiConfig.model} onChange={e => onAiConfigChange({ model: e.target.value })}>
-                  {(availableModels.length ? availableModels : [
-                    "gemini-1.5-flash",
-                    "gemini-1.5-pro",
-                    "gemini-2.0-flash-exp",
-                    "gemini-2.5-flash",
-                    "gemini-2.5-pro",
-                    "gemini-2.5-flash-lite",
-                    "gemini-3.0-pro-preview",
-                  ]).map(model => (
+                  {modelsLoading && <option>Loading models...</option>}
+                  {(availableModels.length ? availableModels : FALLBACK_MODELS).map(model => (
                     <option key={model} value={model}>{model}</option>
                   ))}
-                  {!availableModels.includes(aiConfig.model) && <option value={aiConfig.model}>{aiConfig.model} (saved)</option>}
+                  {!availableModels.includes(aiConfig.model) && !FALLBACK_MODELS.includes(aiConfig.model) && (
+                    <option value={aiConfig.model}>{aiConfig.model} (current)</option>
+                  )}
                 </select>
-                <small className="hint-text">Click “Test Gemini key” to load every model supported by your API key, including advanced and preview models.</small>
+                <small className="hint-text">
+                  {availableModels.length > 0
+                    ? `${availableModels.length} models loaded from your API key.`
+                    : modelsLoading
+                    ? "Loading available models..."
+                    : "Enter your API key to auto-load available models."
+                  }
+                </small>
               </div>
               <button className="text-button" onClick={handleTestAi} disabled={testing || !aiConfig.apiKey} style={{marginTop: 10}}>
                 <span className="material-symbols-outlined">{testing ? "hourglass_top" : "network_ping"}</span>

@@ -90,6 +90,12 @@ export default function AppPage() {
     setImportedClasses,
     chatMessages,
     addChatMessage,
+    savedChats,
+    activeSavedChatId,
+    saveChat,
+    loadSavedChat,
+    deleteSavedChat,
+    startNewChat,
     aiConfig,
     setAiConfig,
     aiOnline,
@@ -315,6 +321,33 @@ export default function AppPage() {
       cancelled = true;
     };
   }, [aiConfig.enabled, setAiOnline]);
+
+  // Auto-save chat when navigating away from Study chat
+  const prevViewRef = useRef(currentView);
+  useEffect(() => {
+    const prev = prevViewRef.current;
+    prevViewRef.current = currentView;
+    // If we were on assistant and moved away, save + start new chat
+    if (prev === "assistant" && currentView !== "assistant") {
+      const msgs = useTimelyStore.getState().chatMessages;
+      if (msgs.some(m => m.user)) {
+        saveChat();
+        startNewChat();
+      }
+    }
+  }, [currentView, saveChat, startNewChat]);
+
+  // Auto-save chat on page unload (reload / close tab)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const state = useTimelyStore.getState();
+      if (state.chatMessages.some(m => m.user)) {
+        state.saveChat();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   const handleAiConfigChange = useCallback(
     async (cfg: Partial<AiConfig>) => {
@@ -640,6 +673,12 @@ export default function AppPage() {
               aiEnabled={aiConfig.enabled}
               isTyping={isAiTyping}
               hasKey={!!aiConfig.apiKey}
+              savedChats={savedChats}
+              activeSavedChatId={activeSavedChatId}
+              onSaveChat={saveChat}
+              onLoadChat={loadSavedChat}
+              onDeleteChat={deleteSavedChat}
+              onNewChat={startNewChat}
             />
           )}
           {currentView === "notes" && (

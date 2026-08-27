@@ -62,6 +62,15 @@ export interface ChatMessage {
   id: string;
   text: string;
   user: boolean;
+  timestamp?: number;
+}
+
+export interface SavedChat {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface AiConfig {

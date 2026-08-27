@@ -3,8 +3,8 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { Task, ClassEvent, Subject, Note, FileItem, ChatMessage } from "@/lib/types";
 
 // Re-export all types from the single source of truth
-export type { ViewName, AddType, ScheduleTab, AcademicFilter, AiConfig, Preferences, NotificationItem } from "@/lib/types";
-import type { ViewName, AddType, ScheduleTab, AcademicFilter, AiConfig, Preferences, NotificationItem } from "@/lib/types";
+export type { ViewName, AddType, ScheduleTab, AcademicFilter, AiConfig, Preferences, NotificationItem, SavedChat } from "@/lib/types";
+import type { ViewName, AddType, ScheduleTab, AcademicFilter, AiConfig, Preferences, NotificationItem, SavedChat } from "@/lib/types";
 
 interface TimelyState {
   currentView: ViewName;
@@ -20,6 +20,8 @@ interface TimelyState {
   scheduleTab: ScheduleTab;
   academicFilter: AcademicFilter;
   chatMessages: ChatMessage[];
+  savedChats: SavedChat[];
+  activeSavedChatId: string | null;
   aiConfig: AiConfig;
   aiOnline: boolean;
   importedClasses: ClassEvent[];
@@ -75,6 +77,10 @@ interface TimelyState {
 
   addChatMessage: (msg: ChatMessage) => void;
   setChatMessages: (msgs: ChatMessage[]) => void;
+  saveChat: () => void;
+  loadSavedChat: (id: string) => void;
+  deleteSavedChat: (id: string) => void;
+  startNewChat: () => void;
   setAiConfig: (config: Partial<AiConfig>) => void;
   setAiOnline: (online: boolean) => void;
 
@@ -99,7 +105,7 @@ const DEFAULT_PREFERENCES: Preferences = {
 
 const DEFAULT_AI_CONFIG: AiConfig = {
   apiKey: "",
-  model: "gemini-1.5-flash",
+  model: "gemini-2.5-flash",
   enabled: false,
 };
 
@@ -164,8 +170,10 @@ export const useTimelyStore = create<TimelyState>()(
       weekOffset: 0,
       scheduleTab: "week",
       academicFilter: "all",
-      chatMessages: SEED_CHAT,
-      aiConfig: DEFAULT_AI_CONFIG,
+  chatMessages: SEED_CHAT,
+  savedChats: [],
+  activeSavedChatId: null,
+  aiConfig: DEFAULT_AI_CONFIG,
       aiOnline: false,
       importedClasses: [],
       importSource: "",
@@ -217,8 +225,54 @@ export const useTimelyStore = create<TimelyState>()(
       setScheduleTab: (tab) => set({ scheduleTab: tab }),
       setAcademicFilter: (filter) => set({ academicFilter: filter }),
 
-      addChatMessage: (msg) => set((state) => ({ chatMessages: keepRecentChat([...state.chatMessages, msg]) })),
+      addChatMessage: (msg) => set((state) => ({
+        chatMessages: keepRecentChat([...state.chatMessages, msg]),
+      })),
       setChatMessages: (msgs) => set({ chatMessages: keepRecentChat(msgs) }),
+
+      saveChat: () => set((state) => {
+        const userMsgs = state.chatMessages.filter(m => m.user);
+        if (userMsgs.length === 0) return state;
+        const title = userMsgs[0].text.slice(0, 60);
+        if (state.activeSavedChatId) {
+          // Update existing saved chat
+          return {
+            savedChats: state.savedChats.map(c =>
+              c.id === state.activeSavedChatId
+                ? { ...c, title, messages: [...state.chatMessages], updatedAt: Date.now() }
+                : c
+            ),
+          };
+        }
+        const newSaved: SavedChat = {
+          id: `sc-${Date.now()}`,
+          title,
+          messages: [...state.chatMessages],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        return {
+          savedChats: [newSaved, ...state.savedChats].slice(0, 50),
+          activeSavedChatId: newSaved.id,
+        };
+      }),
+
+      loadSavedChat: (id) => set((state) => {
+        const chat = state.savedChats.find(c => c.id === id);
+        if (!chat) return state;
+        return { chatMessages: [...chat.messages], activeSavedChatId: id };
+      }),
+
+      deleteSavedChat: (id) => set((state) => ({
+        savedChats: state.savedChats.filter(c => c.id !== id),
+        activeSavedChatId: state.activeSavedChatId === id ? null : state.activeSavedChatId,
+      })),
+
+      startNewChat: () => set((state) => ({
+        chatMessages: [{ id: `m-${Date.now()}`, text: `Hey ${state.preferences.profileName?.split(' ')[0] || 'Alex'}! I've got your day in view. What should we figure out?`, user: false }],
+        activeSavedChatId: null,
+      })),
+
       setAiConfig: (config) => set((state) => ({ aiConfig: { ...state.aiConfig, ...config } })),
       setAiOnline: (online) => set({ aiOnline: online }),
 
@@ -250,6 +304,7 @@ export const useTimelyStore = create<TimelyState>()(
         scheduleTab: state.scheduleTab,
         academicFilter: state.academicFilter,
         chatMessages: keepRecentChat(state.chatMessages),
+        savedChats: state.savedChats,
         aiConfig: state.aiConfig,
         importedClasses: state.importedClasses,
         importSource: state.importSource,
