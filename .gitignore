@@ -9,4 +9,5 @@ package-lock.json
 *.err
 *.log
 *.md
+!SECURITY.md
 References/
