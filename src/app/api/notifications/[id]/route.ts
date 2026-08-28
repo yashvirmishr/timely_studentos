@@ -1,11 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { pickFields } from '@/lib/api-validation';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createClient();
+  const { id } = await params;
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
@@ -13,10 +15,11 @@ export async function PUT(
   }
 
   const body = await request.json();
+  const safeBody = pickFields('notifications', body, 'update');
   const { data, error } = await supabase
     .from('notifications')
-    .update(body)
-    .eq('id', params.id)
+    .update(safeBody)
+    .eq('id', id)
     .eq('user_id', user.id)
     .select()
     .single();
@@ -30,9 +33,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createClient();
+  const { id } = await params;
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
@@ -42,7 +46,7 @@ export async function DELETE(
   const { error } = await supabase
     .from('notifications')
     .delete()
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id);
 
   if (error) {
