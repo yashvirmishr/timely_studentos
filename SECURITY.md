@@ -2,48 +2,41 @@
 
 ## Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability in **Timely (Student OS)**, please report it privately so it can be addressed before it is disclosed publicly.
+If you discover a security vulnerability in Timely, please report it responsibly.
 
-**Do NOT** open a public GitHub issue for security-related bugs.
+**Do not open a public GitHub issue for security vulnerabilities.**
 
-### How to report
+Instead, please email the maintainer or open a private security advisory through GitHub:
 
-Please **open a private security advisory** (do not open a public issue):
+1. Go to the [Security tab](https://github.com/yashvirmishr/timely_studentos/security) of the repository
+2. Click **"Report a vulnerability"**
+3. Fill in the advisory form with details
 
-- **GitHub Security Advisory:** https://github.com/yashvirmishr/timely_studentos/security/advisories/new
+## What to Include
 
-Please include as much of the following as possible:
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Suggested fix (if any)
 
-- A description of the vulnerability and its potential impact
-- The affected versions
-- Steps to reproduce (or a minimal proof-of-concept)
-- Any relevant logs or error output
-- Your suggested fix, if you have one
+## Response Time
 
-### What to expect
-
-- You will receive an acknowledgement of your report within **48 hours**.
-- We will keep you updated on the status of the issue as it is triaged and fixed.
-- Once a fix is released, we will credit you for the report if you wish to be credited.
-
-## Supported Versions
-
-Only the latest release is actively supported with security patches. We recommend always running the most recent version.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| latest  | :white_check_mark: |
-| older   | :x:                |
-
-## Disclosure Policy
-
-We follow a responsible disclosure process:
-
-1. The reporter privately notifies us of the vulnerability.
-2. We confirm the issue and begin working on a fix.
-3. A security advisory is published with details once a patched version is available.
-4. Public disclosure happens **after** the fix is released.
+We aim to acknowledge reports within **72 hours** and provide a fix or mitigation plan within **7 days**.
 
 ## Scope
 
-This policy applies to the **Timely** source code and the desktop/web application. Issues related to third-party services (e.g. Google Gemini API keys, Google Classroom) should be reported to their respective providers.
+This applies to:
+
+- The Timely web application (`src/`)
+- The Tauri desktop wrapper (`src-tauri/`)
+- The Gemini AI integration (`src/lib/local-ai.ts`)
+
+## Supported Versions
+
+| Version | Supported |
+| ------- | --------- |
+| 0.1.x   | Yes       |
+
+## Security Best Practices
+
+Timely stores all data locally in the browser (localStorage). API keys are stored in the browser's localStorage and are never sent to any server other than Google's Gemini API directly from the client. No data is transmitted to Timely servers — there are none.
