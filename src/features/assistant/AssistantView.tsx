@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, PendingAiAction } from "@/lib/types";
 
 interface AssistantViewProps {
   messages: ChatMessage[];
@@ -15,6 +15,9 @@ interface AssistantViewProps {
   onLoadChat?: (id: string) => void;
   onDeleteChat?: (id: string) => void;
   onNewChat?: () => void;
+  pendingActions?: PendingAiAction[];
+  onExecuteAction?: (action: PendingAiAction) => void;
+  onDismissAction?: (id: string) => void;
 }
 
 export default function AssistantView({
@@ -30,6 +33,9 @@ export default function AssistantView({
   onLoadChat,
   onDeleteChat,
   onNewChat,
+  pendingActions = [],
+  onExecuteAction,
+  onDismissAction,
 }: AssistantViewProps) {
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
@@ -120,6 +126,34 @@ export default function AssistantView({
                   </p>
                   <span>Timely is thinking…</span>
                 </div>
+              </div>
+            )}
+            {/* Pending AI action buttons */}
+            {pendingActions.length > 0 && (
+              <div className="ai-action-buttons">
+                {pendingActions.map((action) => (
+                  <div key={action.id} className="ai-action-card">
+                    <div className="ai-action-info">
+                      <span className="material-symbols-outlined ai-action-icon">bolt</span>
+                      <span className="ai-action-label">{action.label}</span>
+                    </div>
+                    <div className="ai-action-actions">
+                      <button
+                        className="ai-action-confirm"
+                        onClick={() => onExecuteAction?.(action)}
+                      >
+                        <span className="material-symbols-outlined">check</span>
+                        Confirm
+                      </button>
+                      <button
+                        className="ai-action-dismiss"
+                        onClick={() => onDismissAction?.(action.id)}
+                      >
+                        <span className="material-symbols-outlined">close</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
             <div ref={messagesEnd} />

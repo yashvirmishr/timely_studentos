@@ -11,8 +11,14 @@ import type {
   FileItem,
   ChatMessage,
   AiConfig,
+  PendingAiAction,
 } from "@/lib/types";
 import { getAssistantReply } from "@/lib/utils";
+import {
+  detectSmartIntent,
+  executeAiAction,
+  parseActionsFromResponse,
+} from "@/lib/ai-actions";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import MobileNav from "@/components/MobileNav";
@@ -130,6 +136,9 @@ export default function AppPage() {
     setNoteAiTarget,
     editingId,
     setEditingId,
+    pendingAiActions,
+    addPendingAiAction,
+    removePendingAiAction,
   } = useTimelyStore();
 
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -482,6 +491,35 @@ export default function AppPage() {
         };
       };
 
+      // --- Step 1: Check smart intents (no AI needed) ---
+      const store = useTimelyStore.getState();
+      const smartResult = detectSmartIntent(text, {
+        tasks: store.tasks,
+        classes: store.classes,
+        notes: store.notes,
+      });
+
+      if (smartResult.handled) {
+        const aiMsg: ChatMessage = {
+          id: "a" + Date.now(),
+          text: smartResult.response || "Done!",
+          user: false,
+        };
+        addChatMessage(aiMsg);
+        // If the smart intent also has an action, add it as pending
+        if (smartResult.action) {
+          addPendingAiAction({
+            id: `ai-action-${Date.now()}`,
+            type: smartResult.action.type,
+            label: `${smartResult.action.type.replace(/_/g, " ").toLowerCase()}`,
+            payload: smartResult.action.payload,
+            rawText: smartResult.response,
+          });
+        }
+        return;
+      }
+
+      // --- Step 2: Send to AI ---
       const showTyping = () => setIsAiTyping(true);
       const hideTyping = () => setIsAiTyping(false);
 
@@ -506,12 +544,31 @@ export default function AppPage() {
             messages: msgsWithContext as any,
           });
           hideTyping();
-          const aiMsg: ChatMessage = {
-            id: "a" + Date.now(),
-            text: reply,
-            user: false,
-          };
-          addChatMessage(aiMsg);
+
+          // --- Step 3: Parse action blocks from the reply ---
+          const { cleanText, actions } = parseActionsFromResponse(reply);
+
+          if (cleanText) {
+            const aiMsg: ChatMessage = {
+              id: "a" + Date.now(),
+              text: cleanText,
+              user: false,
+            };
+            addChatMessage(aiMsg);
+          }
+
+          // Add any parsed actions as pending
+          actions.forEach((action) => addPendingAiAction(action));
+
+          // If there were only action blocks and no text, send a confirmation message
+          if (!cleanText && actions.length > 0) {
+            const aiMsg: ChatMessage = {
+              id: "a" + Date.now(),
+              text: `I can help with that — click "Confirm" below to proceed.`,
+              user: false,
+            };
+            addChatMessage(aiMsg);
+          }
         } catch (e: any) {
           hideTyping();
           const fallback = getAssistantReply(text);
@@ -547,7 +604,13 @@ export default function AppPage() {
         }, 650);
       }
     },
-    [aiConfig.enabled, aiConfig.apiKey, aiOnline, addChatMessage],
+    [
+      aiConfig.enabled,
+      aiConfig.apiKey,
+      aiOnline,
+      addChatMessage,
+      addPendingAiAction,
+    ],
   );
 
   const handleImport = useCallback(
@@ -604,6 +667,30 @@ export default function AppPage() {
     showToast("All notifications marked as read");
   }, [markAllNotificationsRead, showToast]);
 
+  const handleExecuteAiAction = useCallback(
+    (action: PendingAiAction) => {
+      const store = useTimelyStore.getState();
+      const result = executeAiAction(action, {
+        addTask: store.addTask,
+        updateTask: store.updateTask,
+        deleteTask: store.deleteTask,
+        addClass: store.addClass,
+        addNote: store.addNote,
+      });
+      removePendingAiAction(action.id);
+      showToast(result.message);
+      // Add confirmation message to chat
+      addChatMessage({
+        id: "a" + Date.now(),
+        text: result.success
+          ? `${result.message} \u2705`
+          : `Could not complete action: ${result.message}`,
+        user: false,
+      });
+    },
+    [removePendingAiAction, showToast, addChatMessage],
+  );
+
   // Global keyboard shortcuts: Escape to close modals, Cmd/Ctrl+K for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -656,10 +743,15 @@ export default function AppPage() {
           {currentView === "schedule" && (
             <ScheduleView
               classes={classes}
+              tasks={tasks}
+              subjects={subjects}
+              aiOnline={aiOnline}
+              aiEnabled={aiConfig.enabled}
               onEditClass={handleEditClass}
               onOpenQuickAdd={openQuickAdd}
               onOpenImport={() => setShowImport(true)}
               onDismissImported={handleDismissImported}
+              onNavigateToProfile={() => setView("profile")}
               weekOffset={weekOffset}
               setWeekOffset={setWeekOffset}
               scheduleTab={scheduleTab}
@@ -694,6 +786,9 @@ export default function AppPage() {
               onLoadChat={loadSavedChat}
               onDeleteChat={deleteSavedChat}
               onNewChat={startNewChat}
+              pendingActions={pendingAiActions}
+              onExecuteAction={handleExecuteAiAction}
+              onDismissAction={removePendingAiAction}
             />
           )}
           {currentView === "notes" && (

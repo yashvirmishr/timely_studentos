@@ -28,8 +28,8 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
   const urgentSubject = subjects.find(subject => subject.urgent) || subjects[0];
   const todayName = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][today.getDay()];
   const todayClasses = classes.filter(cls => cls.day === todayName).sort((a, b) => a.start.localeCompare(b.start));
-  const displayedClasses = todayClasses.length ? todayClasses : classes.filter(cls => cls.day === "TUE").sort((a, b) => a.start.localeCompare(b.start));
-  const nextClass = todayClasses[0] || classes[0];
+  const displayedClasses = todayClasses.length ? todayClasses : [];
+  const nextClass = todayClasses[0] || classes.find(c => ["MON", "TUE", "WED", "THU", "FRI"].includes(c.day)) || classes[0];
   const hour = today.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const profileName = useTimelyStore.getState().preferences.profileName || "Alex";
@@ -90,24 +90,38 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
           <div className="timeline paper-card">
             <div className="timeline-now"><span>NOW</span><i /></div>
 
-            {displayedClasses.slice(0, 3).map((cls, index) => (
-              <article key={cls.id} className={`timeline-row ${index === 0 ? "past" : index === 1 ? "current" : ""}`}>
-                <time>{cls.start}</time>
-                <div className="timeline-line" />
-                <div className={`event-card event-${cls.color}`}>
-                  <div className="event-top">
-                    <span className="event-type">{index === 1 ? "UP NEXT" : cls.imported ? "IMPORTED" : "CLASS"} · {cls.room}</span>
-                    {index === 0 ? <span className="event-check"><span className="material-symbols-outlined">check</span></span> : index === 1 ? <span className="event-live">Next up</span> : <span className="event-type">{cls.day}</span>}
+            {displayedClasses.length > 0 ? (
+              displayedClasses.slice(0, 3).map((cls, index) => (
+                <article key={cls.id} className={`timeline-row ${index === 0 ? "past" : index === 1 ? "current" : ""}`}>
+                  <time>{cls.start}</time>
+                  <div className="timeline-line" />
+                  <div className={`event-card event-${cls.color}`}>
+                    <div className="event-top">
+                      <span className="event-type">{index === 1 ? "UP NEXT" : cls.imported ? "IMPORTED" : "CLASS"} · {cls.room}</span>
+                      {index === 0 ? <span className="event-check"><span className="material-symbols-outlined">check</span></span> : index === 1 ? <span className="event-live">Next up</span> : <span className="event-type">{cls.day}</span>}
+                    </div>
+                    <h3>{cls.subject}</h3>
+                    <p>{cls.teacher} · {cls.room}</p>
+                    <div className="event-footer">
+                      <span>{cls.start} — {cls.end}</span>
+                      <span className="event-avatar">{cls.teacher.split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
+                    </div>
                   </div>
-                  <h3>{cls.subject}</h3>
-                  <p>{cls.teacher} · {cls.room}</p>
-                  <div className="event-footer">
-                    <span>{cls.start} — {cls.end}</span>
-                    <span className="event-avatar">{cls.teacher.split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
+                </article>
+              ))
+            ) : (
+              <article className="timeline-row">
+                <time>{hour < 12 ? "09:00" : hour < 14 ? "13:00" : "16:00"}</time>
+                <div className="timeline-line" />
+                <div className="free-block" style={{ textAlign: "center", padding: "1.5rem" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: "2rem", opacity: 0.5 }}>event_available</span>
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <strong>No classes today</strong>
+                    <p style={{ marginTop: "0.25rem", opacity: 0.7 }}>Enjoy your free day! Add a class in Schedule if needed.</p>
                   </div>
                 </div>
               </article>
-            ))}
+            )}
 
             <article className="timeline-row">
               <time>14:00</time>

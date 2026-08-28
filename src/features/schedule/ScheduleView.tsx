@@ -1,14 +1,20 @@
 "use client";
 
-import React from "react";
-import type { AddType, ClassEvent, ScheduleTab } from "@/lib/types";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import type { AddType, ClassEvent, ScheduleTab, Task, Subject } from "@/lib/types";
+import type { ScheduleSuggestion } from "@/lib/local-ai";
 
 interface ScheduleViewProps {
   classes: ClassEvent[];
+  tasks?: Task[];
+  subjects?: Subject[];
+  aiOnline?: boolean;
+  aiEnabled?: boolean;
   onEditClass: (cls: ClassEvent) => void;
   onOpenQuickAdd: (type: AddType) => void;
   onOpenImport: () => void;
   onDismissImported: () => void;
+  onNavigateToProfile?: () => void;
   weekOffset: number;
   setWeekOffset: (offset: number) => void;
   scheduleTab: ScheduleTab;
@@ -62,10 +68,15 @@ function formatWeekLabel(offset: number): string {
 
 export default function ScheduleView({
   classes,
+  tasks = [],
+  subjects = [],
+  aiOnline = false,
+  aiEnabled = false,
   onEditClass,
   onOpenQuickAdd,
   onOpenImport,
   onDismissImported,
+  onNavigateToProfile,
   weekOffset,
   setWeekOffset,
   scheduleTab,
@@ -78,6 +89,37 @@ export default function ScheduleView({
 }: ScheduleViewProps) {
   const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
   const isCurrentWeek = weekOffset === 0;
+
+  // --- AI-powered smart suggestion ---
+  const [suggestion, setSuggestion] = useState<ScheduleSuggestion | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const suggestionFetched = useRef(false);
+
+  const fetchSuggestion = useCallback(async () => {
+    if (!aiOnline || !aiEnabled || classes.length === 0) return;
+    setSuggestionLoading(true);
+    try {
+      const { generateScheduleSuggestion } = await import("@/lib/local-ai");
+      const result = await generateScheduleSuggestion({
+        classes: classes.map(c => ({ subject: c.subject, day: c.day, start: c.start, end: c.end, room: c.room, teacher: c.teacher })),
+        tasks: tasks.map(t => ({ title: t.title, subject: t.subject, due: t.due, priority: t.priority, completed: t.completed })),
+        subjects: subjects.map(s => ({ name: s.name, preparedness: s.preparedness, tasksDue: s.tasksDue, urgent: s.urgent })),
+      });
+      setSuggestion(result);
+    } catch {
+      // Silently fall back — suggestions are non-critical
+    } finally {
+      setSuggestionLoading(false);
+    }
+  }, [aiOnline, aiEnabled, classes, tasks, subjects]);
+
+  useEffect(() => {
+    if (suggestionFetched.current) return;
+    if (aiOnline && aiEnabled && classes.length > 0) {
+      suggestionFetched.current = true;
+      fetchSuggestion();
+    }
+  }, [aiOnline, aiEnabled, classes.length, fetchSuggestion]);
 
   if (scheduleTab === "agenda" || scheduleTab === "day") {
     const agendaDays = scheduleTab === "day" ? [DAYS[todayIndex] || "MON"] : DAYS;
@@ -219,13 +261,45 @@ export default function ScheduleView({
         </div>
       </div>
 
-      <div className="schedule-note">
-        <span className="material-symbols-outlined">auto_awesome</span>
-        <span>
-          <strong>Smart suggestion:</strong> Wednesday has a 90-minute gap before your essay deadline. Want to reserve it for a focused study block?
-        </span>
-        <button className="text-button" onClick={() => onOpenQuickAdd("task")}>Reserve it</button>
-      </div>
+      {!aiOnline && aiEnabled && classes.length > 0 && (
+        <div className="schedule-note">
+          <span className="material-symbols-outlined">vpn_key</span>
+          <span>
+            <strong>Smart suggestions are AI-powered.</strong> Connect your Gemini API key in Profile to get personalized schedule tips.
+          </span>
+          <button className="text-button" onClick={onNavigateToProfile}>
+            <span className="material-symbols-outlined">settings</span>Connect Gemini
+          </button>
+        </div>
+      )}
+      {!aiEnabled && classes.length > 0 && (
+        <div className="schedule-note">
+          <span className="material-symbols-outlined">auto_awesome</span>
+          <span>
+            <strong>Smart suggestions are AI-powered.</strong> Enable Gemini in Profile to get personalized schedule tips like study blocks and gap analysis.
+          </span>
+          <button className="text-button" onClick={onNavigateToProfile}>
+            <span className="material-symbols-outlined">settings</span>Enable in Profile
+          </button>
+        </div>
+      )}
+      {aiOnline && suggestionLoading && classes.length > 0 && (
+        <div className="schedule-note">
+          <span className="material-symbols-outlined spin" style={{ animation: "spin 1s linear infinite" }}>auto_awesome</span>
+          <span><strong>Thinking of a smart suggestion…</strong></span>
+        </div>
+      )}
+      {aiOnline && !suggestionLoading && suggestion && classes.length > 0 && (
+        <div className="schedule-note">
+          <span className="material-symbols-outlined">auto_awesome</span>
+          <span>
+            <strong>Smart suggestion:</strong> {suggestion.text}
+          </span>
+          <button className="text-button" onClick={() => onOpenQuickAdd(suggestion.actionType === "study_block" || suggestion.actionType === "task" ? "task" : "event")}>
+            {suggestion.actionLabel || "Got it"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

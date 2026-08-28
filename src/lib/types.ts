@@ -111,3 +111,22 @@ export type AddType = "task" | "event" | "note" | "exam";
 
 export type ScheduleTab = "week" | "day" | "agenda";
 export type AcademicFilter = "all" | "active" | "attention";
+
+export type AiActionType =
+  | "CREATE_TASK"
+  | "UPDATE_TASK"
+  | "DELETE_TASK"
+  | "ADD_CLASS"
+  | "CREATE_NOTE"
+  | "SET_REMINDER";
+
+export interface PendingAiAction {
+  id: string;
+  type: AiActionType;
+  /** Human-readable label for the action button */
+  label: string;
+  /** Payload to pass to the store action */
+  payload: Record<string, unknown>;
+  /** The AI's text that accompanied this action (may contain the action block) */
+  rawText?: string;
+}

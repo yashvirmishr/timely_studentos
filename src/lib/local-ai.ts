@@ -236,6 +236,83 @@ export async function chatWithLocalAi(params: ChatParams): Promise<string> {
   );
 }
 
+export interface ScheduleSuggestion {
+  text: string;
+  actionLabel?: string;
+  actionType?: "task" | "event" | "study_block";
+}
+
+/** Ask Gemini to generate a smart suggestion based on the student's schedule and tasks. */
+export async function generateScheduleSuggestion(params: {
+  classes: { subject: string; day: string; start: string; end: string; room: string; teacher: string }[];
+  tasks: { title: string; subject: string; due: string; priority: string; completed: boolean }[];
+  subjects: { name: string; preparedness?: number; tasksDue?: number; urgent?: boolean }[];
+}): Promise<ScheduleSuggestion> {
+  const config = getConfig();
+  if (!config.enabled || !config.apiKey) throw new Error("Gemini not connected");
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const dayNames = ["MON", "TUE", "WED", "THU", "FRI"];
+  const currentDay = dayNames[now.getDay() === 0 ? 6 : now.getDay() - 1];
+
+  const incompleteTasks = params.tasks.filter(t => !t.completed);
+  const urgentSubjects = params.subjects.filter(s => s.urgent);
+
+  const systemPrompt = [
+    `You are Timely AI, a student's schedule assistant. Today is ${dateStr}, ${currentDay}.`,
+    "You generate ONE smart suggestion that helps the student manage their week.",
+    "Analyze gaps between classes, upcoming deadlines, low-preparedness subjects, and free time.",
+    '',
+    'Return JSON only, no markdown fences:',
+    '{"text":"<1-2 sentence suggestion>","actionLabel":"<short button label like Reserve it, Start study, Review now>","actionType":"task|event|study_block"}',
+    '',
+    "Rules:",
+    "- The suggestion must be actionable and specific (mention actual subjects, times, or tasks).",
+    "- Prioritize: (1) gaps before deadlines, (2) light days that need prep, (3) overdue/high-priority tasks.",
+    "- Keep text under 100 characters for the suggestion.",
+    "- actionLabel under 3 words.",
+  ].join("\n");
+
+  const userPrompt = [
+    "Student's data:",
+    `Timetable: ${JSON.stringify(params.classes)}`,
+    `Incomplete tasks: ${JSON.stringify(incompleteTasks.slice(0, 8))}`,
+    `Subjects (with preparedness %): ${JSON.stringify(params.subjects.map(s => ({ name: s.name, preparedness: s.preparedness, tasksDue: s.tasksDue, urgent: s.urgent })))}`,
+    '',
+    "Generate one smart schedule suggestion as JSON.",
+  ].join("\n");
+
+  const body: GeminiGenerateContentRequest = {
+    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: { temperature: 0.3, maxOutputTokens: 256 },
+  };
+
+  let result = await tryGenerate(config.model, body, config.apiKey);
+  if (!result) {
+    const available = await discoverModels(config.apiKey);
+    const fallbacks = sortFallbackModels(available, config.model);
+    for (const model of fallbacks) {
+      result = await tryGenerate(model, body, config.apiKey);
+      if (result) break;
+    }
+  }
+  if (!result) throw new Error("Gemini could not generate a suggestion.");
+
+  try {
+    const fenced = result.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] || result;
+    const parsed = JSON.parse(fenced.trim());
+    return {
+      text: parsed.text || result,
+      actionLabel: parsed.actionLabel,
+      actionType: parsed.actionType,
+    };
+  } catch {
+    return { text: result.slice(0, 140) };
+  }
+}
+
 export interface ExtractedTimetable {
   classes: {
     subject: string;
@@ -295,27 +372,81 @@ export interface TimelyContext {
 }
 
 function buildContextPrompt(context?: TimelyContext): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+  const ACTION_FORMAT = `
+
+## Actions you can take
+When the user asks you to create, update, or delete something, emit a structured action block IN YOUR REPLY.
+The user will see a confirm button — they must click it before anything changes.
+
+Available actions:
+[ACTION:CREATE_TASK:{"title":"...","subject":"...","due":"...","priority":"high|medium|low","time":"..."}]
+[ACTION:UPDATE_TASK:{"id":"...","title":"...","due":"...","priority":"..."}]
+[ACTION:DELETE_TASK:{"id":"...","title":"..."}]
+[ACTION:ADD_CLASS:{"subject":"...","teacher":"...","room":"...","day":"MON|TUE|WED|THU|FRI","start":"HH:MM","end":"HH:MM"}]
+[ACTION:CREATE_NOTE:{"title":"...","subject":"...","body":"..."}]
+[ACTION:SET_REMINDER:{"text":"...","due":"..."}]
+
+Rules for actions:
+- You may emit MULTIPLE action blocks in a single reply.
+- Always include a natural-language explanation BEFORE or AFTER the action blocks.
+- Only suggest actions the user explicitly asked for. Never create tasks/notes unprompted.
+- Keep the JSON compact — no newlines inside the JSON object.`;
+
   if (!context || (!context.tasks && !context.classes)) {
     return [
-      "You are Timely AI, a warm, concise academic planning companion for a student named Alex.",
-      "Keep responses under 3 sentences when possible, encouraging, and concrete.",
-      "You know Alex's schedule: English Literature 08:30-09:45 (Room B14, Jamie Morgan), Advanced Calculus 10:00-11:15 (Room C02, Dr. Chen), Art & Design 11:30-13:00 (Studio 3, Sofia Kim) on Tuesdays. History essay is due tomorrow. Calculus midterm in 6 days.",
-      "Always be helpful and never give harmful advice. Use the conversation context and be brief.",
+      `You are Timely AI, a student's personal academic assistant inside the Timely app. Today is ${dateStr}, ${timeStr}.`,
+      "You help with scheduling, task management, note-taking, and study planning.",
+      "Keep responses under 4 sentences. Be encouraging, concrete, and actionable.",
+      "When the user asks to create/update/delete something, use the ACTION format below.",
+      ACTION_FORMAT,
     ].join("\n");
   }
+
+  const incompleteTasks = (context.tasks || []).filter(t => !t.completed);
+  const upcomingTasks = incompleteTasks.slice(0, 8);
+
   const lines: string[] = [
-    `You are Timely AI, a warm, concise academic companion for ${context.profileName || "Alex"}. Keep replies under 3 sentences, encouraging, concrete. Never hallucinate outside provided context.`,
+    `You are Timely AI, a student's personal academic assistant inside the Timely app. Today is ${dateStr}, ${timeStr}.`,
+    `The student is ${context.profileName || "Alex"}.`,
     "",
-    "Live context (JSON):",
+    "## Student context",
     JSON.stringify({
-      date: new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
-      tasks: (context.tasks || []).slice(0, 12),
-      timetable: (context.classes || []).slice(0, 20),
-      subjects: (context.subjects || []).slice(0, 8),
-      notes: (context.notes || []).slice(0, 6).map(n => ({ title: n.title, subject: n.subject })),
+      date: dateStr,
+      time: timeStr,
+      upcomingTasks: upcomingTasks.map(t => ({
+        title: t.title,
+        subject: t.subject,
+        due: t.due,
+        priority: t.priority,
+      })),
+      timetable: (context.classes || []).slice(0, 20).map(c => ({
+        subject: c.subject,
+        day: c.day,
+        start: c.start,
+        end: c.end,
+        room: c.room,
+        teacher: c.teacher,
+      })),
+      subjects: (context.subjects || []).slice(0, 8).map(s => ({
+        name: s.name,
+        teacher: s.teacher,
+        progress: s.progress,
+      })),
+      recentNotes: (context.notes || []).slice(0, 5).map(n => ({
+        title: n.title,
+        subject: n.subject,
+      })),
     }, null, 2),
     "",
-    "Rules: Use only the live context + user message. Be brief, suggest next small step, offer to shape a focus block. Never invent exams or deadlines.",
+    "## Rules",
+    "- Use ONLY the provided context + conversation. Never invent exams, deadlines, or classes.",
+    "- Be brief (2-4 sentences). Suggest the next small concrete step.",
+    "- When the user asks to create/update/delete, use the ACTION format below.",
+    ACTION_FORMAT,
   ];
   return lines.join("\n");
 }

@@ -40,8 +40,8 @@ CREATE TABLE IF NOT EXISTS public.classes (
   teacher TEXT NOT NULL,
   room TEXT NOT NULL,
   day TEXT NOT NULL,
-  start TEXT NOT NULL,
-  end TEXT NOT NULL,
+  "start" TEXT NOT NULL,
+  "end" TEXT NOT NULL,
   color TEXT CHECK (color IN ('lilac', 'blue', 'green', 'yellow', 'red')) NOT NULL,
   checked BOOLEAN DEFAULT FALSE,
   imported BOOLEAN DEFAULT FALSE,
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   chat_id TEXT NOT NULL,
   text TEXT NOT NULL,
-  user BOOLEAN NOT NULL,
+  "user" BOOLEAN NOT NULL,
   timestamp BIGINT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
