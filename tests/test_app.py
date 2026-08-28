@@ -57,7 +57,7 @@ def page(app_server):
 
 def test_dashboard_and_desktop_navigation_contract(page: Page):
     page.goto(BASE, wait_until="networkidle")
-    assert page.locator("h1", has_text="Good morning").is_visible()
+    assert page.locator("h1").filter(has_text="Good ").is_visible()
     assert page.locator(".timeline").is_visible()
     assert page.locator(".focus-card").is_visible()
 

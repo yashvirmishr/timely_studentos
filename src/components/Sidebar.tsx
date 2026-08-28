@@ -51,7 +51,7 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
         <div className="avatar">{initials}</div>
         <div className="profile-copy">
           <strong>{profileName}</strong>
-          <span>Year 12 · Spring term</span>
+          <span>Student · {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
         </div>
         <button className="icon-button small" aria-label="Open profile">
           <span className="material-symbols-outlined">more_horiz</span>
@@ -65,7 +65,7 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
         <NavButton view="assistant" icon="auto_awesome" label="Study chat" />
       </nav>
 
-      <nav className="nav-list secondary-nav" style={{marginTop: 25}}>
+      <nav className="nav-list secondary-nav">
         <NavButton view="notes" icon="sticky_note_2" label="Notes" />
         <NavButton view="files" icon="folder_open" label="Files" />
         <NavButton view="analytics" icon="monitoring" label="Analytics" />

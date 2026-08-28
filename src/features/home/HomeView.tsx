@@ -3,6 +3,7 @@
 import React from "react";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import type { ViewName, AddType, Task, ClassEvent, Subject } from "@/lib/types";
+import { useTimelyStore } from "@/lib/store";
 import type { PomodoroState } from "@/lib/usePomodoro";
 
 interface HomeViewProps {
@@ -29,6 +30,9 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
   const todayClasses = classes.filter(cls => cls.day === todayName).sort((a, b) => a.start.localeCompare(b.start));
   const displayedClasses = todayClasses.length ? todayClasses : classes.filter(cls => cls.day === "TUE").sort((a, b) => a.start.localeCompare(b.start));
   const nextClass = todayClasses[0] || classes[0];
+  const hour = today.getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const profileName = useTimelyStore.getState().preferences.profileName || "Alex";
 
   return (
     <div>
@@ -36,7 +40,7 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
       <div className="page-heading hero-heading">
         <div>
           <p className="eyebrow"><span className="live-pulse" /> {dateLabel}</p>
-          <h1>Good morning, Alex <span className="wave">{"\u2726"}</span></h1>
+          <h1>{greeting}, {profileName} <span className="wave">{"\u2726"}</span></h1>
           <p className="heading-subtitle">Here{"\u2019"}s the shape of your day. Keep it light, keep moving.</p>
         </div>
         <div className="heading-actions">

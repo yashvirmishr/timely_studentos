@@ -28,6 +28,98 @@ interface TimelyState {
   importSource: string;
   importReview: ClassEvent[];
   importConfidence: number | null;
+  homeworkReview: Record<string, unknown> | null;
+  noteAiTarget: Note | null;
+  editingId: string | null;
+  syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
+  lastSyncedAt: number | null;
+  userId: string | null;
+
+  setView: (view: ViewName) => void;
+  setAddType: (type: AddType) => void;
+  setEditingId: (id: string | null) => void;
+  setShowQuickAdd: (show: boolean) => void;
+  setShowImport: (show: boolean) => void;
+  setShowSearch: (show: boolean) => void;
+  setShowNotifications: (show: boolean) => void;
+  setUserId: (id: string | null) => void;
+
+  addTask: (task: Task) => void;
+  updateTask: (id: string, updates: Partial<Task>) => void;
+  deleteTask: (id: string) => void;
+  toggleTask: (id: string) => void;
+
+  addClass: (cls: ClassEvent) => void;
+  updateClass: (id: string, updates: Partial<ClassEvent>) => void;
+  deleteClass: (id: string) => void;
+
+  addSubject: (subject: Subject) => void;
+  updateSubject: (id: string, updates: Partial<Subject>) => void;
+  deleteSubject: (id: string) => void;
+
+  addNote: (note: Note) => void;
+  updateNote: (id: string, updates: Partial<Note>) => void;
+  deleteNote: (id: string) => void;
+
+  addFile: (file: FileItem) => void;
+  deleteFile: (id: string) => void;
+
+  addNotification: (notification: NotificationItem) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+
+  setPreferences: (prefs: Partial<Preferences>) => void;
+  setWeekOffset: (offset: number) => void;
+  setScheduleTab: (tab: ScheduleTab) => void;
+  setAcademicFilter: (filter: AcademicFilter) => void;
+
+  addChatMessage: (msg: ChatMessage) => void;
+  setChatMessages: (msgs: ChatMessage[]) => void;
+  saveChat: () => void;
+  loadSavedChat: (id: string) => void;
+  deleteSavedChat: (id: string) => void;
+  startNewChat: () => void;
+  setAiConfig: (config: Partial<AiConfig>) => void;
+  setAiOnline: (online: boolean) => void;
+
+  setImportedClasses: (classes: ClassEvent[]) => void;
+  setImportSource: (source: string) => void;
+  setImportReview: (classes: ClassEvent[]) => void;
+  setImportConfidence: (conf: number | null) => void;
+  setHomeworkReview: (review: Record<string, unknown> | null) => void;
+  setNoteAiTarget: (note: Note | null) => void;
+
+  syncWithSupabase: () => Promise<void>;
+  pullFromSupabase: () => Promise<void>;
+  pushToSupabase: () => Promise<void>;
+
+  getTasksForSubject: (subject: string) => Task[];
+  getClassesForDay: (day: string) => ClassEvent[];
+  getUnreadNotificationCount: () => number;
+}
+
+interface TimelyState {
+  currentView: ViewName;
+  addType: AddType;
+  tasks: Task[];
+  classes: ClassEvent[];
+  subjects: Subject[];
+  notes: Note[];
+  files: FileItem[];
+  notifications: NotificationItem[];
+  preferences: Preferences;
+  weekOffset: number;
+  scheduleTab: ScheduleTab;
+  academicFilter: AcademicFilter;
+  chatMessages: ChatMessage[];
+  savedChats: SavedChat[];
+  activeSavedChatId: string | null;
+  aiConfig: AiConfig;
+  aiOnline: boolean;
+  importedClasses: ClassEvent[];
+  importSource: string;
+  importReview: ClassEvent[];
+  importConfidence: number | null;
   /** Placeholder for future homework-scan feature. */
   homeworkReview: Record<string, unknown> | null;
   noteAiTarget: Note | null;
@@ -182,6 +274,9 @@ export const useTimelyStore = create<TimelyState>()(
       homeworkReview: null,
       noteAiTarget: null,
       editingId: null,
+      syncStatus: 'idle' as const,
+      lastSyncedAt: null,
+      userId: null,
       // UI state (not persisted)
       showQuickAdd: false,
       showImport: false,
@@ -283,6 +378,60 @@ export const useTimelyStore = create<TimelyState>()(
       setHomeworkReview: (review) => set({ homeworkReview: review }),
       setNoteAiTarget: (note) => set({ noteAiTarget: note }),
 
+      setUserId: (id) => set({ userId: id }),
+
+      syncWithSupabase: async () => {
+        const { userId } = get();
+        if (!userId) return;
+        
+        set({ syncStatus: 'syncing' });
+        try {
+          await get().pushToSupabase();
+          await get().pullFromSupabase();
+          set({ syncStatus: 'synced', lastSyncedAt: Date.now() });
+        } catch (error) {
+          console.error('Supabase sync failed:', error);
+          set({ syncStatus: 'error' });
+        }
+      },
+
+      pushToSupabase: async () => {
+        const { userId } = get();
+        if (!userId) return;
+        
+        const state = get();
+        const { pushAllEntities } = await import('@/lib/supabase/sync');
+        await pushAllEntities(userId, {
+          tasks: state.tasks,
+          classes: state.classes,
+          subjects: state.subjects,
+          notes: state.notes,
+          files: state.files,
+          savedChats: state.savedChats,
+          notifications: state.notifications,
+          preferences: state.preferences,
+          aiConfig: state.aiConfig,
+        });
+      },
+
+      pullFromSupabase: async () => {
+        const { userId } = get();
+        if (!userId) return;
+        
+        const { fetchAllEntities } = await import('@/lib/supabase/sync');
+        const remoteData = await fetchAllEntities(userId);
+        
+        if (remoteData.tasks?.length) set({ tasks: remoteData.tasks });
+        if (remoteData.classes?.length) set({ classes: remoteData.classes });
+        if (remoteData.subjects?.length) set({ subjects: remoteData.subjects });
+        if (remoteData.notes?.length) set({ notes: remoteData.notes });
+        if (remoteData.files?.length) set({ files: remoteData.files });
+        if (remoteData.saved_chats?.length) set({ savedChats: remoteData.saved_chats });
+        if (remoteData.notifications?.length) set({ notifications: remoteData.notifications });
+        if (remoteData.profiles?.length) set({ preferences: remoteData.profiles[0] });
+        if (remoteData.ai_config?.length) set({ aiConfig: remoteData.ai_config[0] });
+      },
+
       getTasksForSubject: (subject) => get().tasks.filter((t) => t.subject === subject),
       getClassesForDay: (day) => get().classes.filter((c) => c.day === day),
       getUnreadNotificationCount: () => get().notifications.filter((n) => !n.read).length,
@@ -310,6 +459,7 @@ export const useTimelyStore = create<TimelyState>()(
         importSource: state.importSource,
         importReview: state.importReview,
         importConfidence: state.importConfidence,
+        userId: state.userId,
       }),
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {

@@ -9,6 +9,8 @@ export interface ClassEvent {
   color: "lilac" | "blue" | "green" | "yellow" | "red";
   checked?: boolean;
   imported?: boolean;
+  googleCalendarId?: string;
+  allDay?: boolean;
 }
 
 export interface Task {

@@ -184,9 +184,9 @@ export default function ProfileView({
         <div className="settings-card paper-card profile-large">
           <div className="large-avatar avatar">{preferences.profileName.slice(0, 2).toUpperCase()}</div>
           <h2>{preferences.profileName}</h2>
-          <p style={{ fontSize: 11, color: "#99968e" }}>Student · Spring 2024</p>            <button className="text-button" onClick={() => document.getElementById("profileName")?.focus()}>Edit profile <span className="material-symbols-outlined">edit</span></button>
+          <p className="profile-subtitle">Student</p>            <button className="text-button" onClick={() => document.getElementById("profileName")?.focus()}>Edit profile <span className="material-symbols-outlined">edit</span></button>
           <div className="profile-divider" />
-          <div className="term-row"><span>Current term</span><strong>Spring 2024 <span className="material-symbols-outlined">expand_more</span></strong></div>
+          <div className="term-row"><span>Current term</span><strong>{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} <span className="material-symbols-outlined">expand_more</span></strong></div>
         </div>
 
         {/* Calendars */}
@@ -196,7 +196,7 @@ export default function ProfileView({
           <div className="connection-row">
             <span className="connection-logo google">G</span>
             <div><strong>Google Calendar</strong><small>{calendarConnected ? "Connected · ready to sync" : "Connect to import events into Schedule"}</small></div>
-            {calendarConnected ? <button className="text-button" onClick={() => { disconnectGoogleCalendar(); setCalendarConnected(false); }}>Disconnect</button> : <span className="material-symbols-outlined" style={{ color: "#aaa" }}>link_off</span>}
+            {calendarConnected ? <button className="text-button" onClick={() => { disconnectGoogleCalendar(); setCalendarConnected(false); }}>Disconnect</button> : <span className="material-symbols-outlined status-icon-inactive">link_off</span>}
           </div>
           {!calendarConnected && <div className="field-row" style={{marginTop: 8}}>
             <input className="text-field" value={calendarClientId} onChange={e => setCalendarClientId(e.target.value)} placeholder="Google OAuth Client ID" />
@@ -215,7 +215,7 @@ export default function ProfileView({
           <span className="section-kicker">Google Classroom</span>
           <div style={{display: "flex", alignItems: "center", gap: 8}}>
             <span className="status-dot" style={{background: dotColor(gcConnected)}} />
-            <span style={{fontSize: 12, color: gcConnected ? "#4caf50" : "#777871"}}>
+            <span className="status-label">
               {gcConnected ? `Connected as ${gcEmail || "Google"}` : "Not connected"}
             </span>
           </div>
@@ -239,7 +239,7 @@ export default function ProfileView({
                   <button className="text-button" onClick={handleGcSync} disabled={gcBusy}>
                     <span className="material-symbols-outlined">sync</span> {gcBusy ? "Syncing..." : "Sync assignments"}
                   </button>
-                  <button className="text-button" onClick={handleGcDisconnect} style={{color: "#ff4d4d"}}>
+                  <button className="text-button danger" onClick={handleGcDisconnect}>
                     <span className="material-symbols-outlined">link_off</span> Disconnect
                   </button>
                 </div>
@@ -260,7 +260,7 @@ export default function ProfileView({
           <span className="section-kicker">Study Chat AI · Gemini</span>
           <div style={{display: "flex", alignItems: "center", gap: 8}}>
             <span className="status-dot" style={{background: dotColor(aiOnline)}} />
-            <span style={{fontSize: 12, color: aiOnline ? "#4caf50" : "#777871"}}>
+            <span className="status-label">
               {aiOnline ? `Connected · ${aiConfig.model}` : aiConfig.apiKey ? "Key saved · test to verify" : "Not connected"}
             </span>
           </div>

@@ -101,22 +101,22 @@ export default function AssistantView({
               </button>
             </div>
           </div>
-          <div className="chat-messages" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="chat-messages">
             {messages.map(m => (
               <div key={m.id} className={`message ${m.user ? "user-message" : "assistant-message"}`}>
-                <div style={{ maxWidth: m.user ? '75%' : '85%' }}>
-                  <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.text}</p>
-                  <span>just now</span>
+                <div className={m.user ? 'message-body user-body' : 'message-body'}>
+                  <p className="message-text">{m.text}</p>
+                  <span>{formatTime(parseInt(m.id.slice(1)) || 0)}</span>
                 </div>
               </div>
             ))}
             {isTyping && (
               <div className="message assistant-message">
                 <div>
-                  <p style={{ display: 'flex', gap: 6, alignItems: 'center', minWidth: 60 }}>
-                    <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#9aa0a6', animation: 'typing 1s infinite' }} />
-                    <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#9aa0a6', animation: 'typing 1s infinite .2s' }} />
-                    <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#9aa0a6', animation: 'typing 1s infinite .4s' }} />
+                  <p className="typing-indicator">
+                    <span className="typing-dot" />
+                    <span className="typing-dot delay-1" />
+                    <span className="typing-dot delay-2" />
                   </p>
                   <span>Timely is thinking…</span>
                 </div>
@@ -132,13 +132,13 @@ export default function AssistantView({
               placeholder={isTyping ? "Timely is thinking…" : "Ask about your day..."}
               disabled={!!isTyping}
             />
-            <span className="attach-button icon-button small" aria-hidden="true"><span className="material-symbols-outlined">lock</span></span>
-            <button type="submit" className="send-button" disabled={!input.trim() || !!isTyping} style={{ opacity: !input.trim() || isTyping ? .5 : 1 }}><span className="material-symbols-outlined">arrow_upward</span></button>
+            <span className="attach-button" aria-hidden="true"><span className="material-symbols-outlined">lock</span></span>
+            <button type="submit" className="send-button" disabled={!input.trim() || !!isTyping}><span className="material-symbols-outlined">arrow_upward</span></button>
           </form>
           {!hasKey && aiEnabled && (
-            <div style={{ padding: '8px 16px 12px', fontSize: 11, color: '#8a6d00', background: '#fff8e1', borderTop: '1px solid #f0dca0', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>vpn_key</span>
-              Add your Gemini API key in <strong style={{ margin: '0 4px' }}>Profile → Gemini</strong> to get real answers. <span style={{ opacity: .7 }}>(Fallback replies work offline)</span>
+            <div className="chat-api-warning">
+              <span className="material-symbols-outlined">vpn_key</span>
+              Add your Gemini API key in <strong>Profile → Gemini</strong> to get real answers. <span className="chat-api-warning-hint">(Fallback replies work offline)</span>
             </div>
           )}
         </div>

@@ -74,9 +74,9 @@ export default function PomodoroTimer({ p }: { p: PomodoroState }) {
               : `Break complete! ${sessions.today} session${sessions.today !== 1 ? "s" : ""} done today. Ready to go again?`
             : isWork
             ? running
-              ? `${WORK_MINUTES - mins}m ${WORK_MINUTES - mins === 1 ? "has" : "have"} passed \u2014 stay with it.`
+              ? `${WORK_MINUTES - mins}m ${WORK_MINUTES - mins === 1 ? "has" : "have"} passed — stay with it.`
               : `Great work! ${sessions.today} session${sessions.today !== 1 ? "s" : ""} completed today.`
-            : `${WORK_MINUTES}-minute focus block. You\u2019ve done ${sessions.today} today.`
+            : `${WORK_MINUTES}-minute focus block. You’ve done ${sessions.today} today.`
           }
         </p>
 

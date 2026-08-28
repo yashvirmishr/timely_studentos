@@ -135,6 +135,7 @@ export default function AppPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [toastMessage, setToastMessage] = React.useState("");
   const [googleCalendarBusy, setGoogleCalendarBusy] = React.useState(false);
+  const googleCalendarRequest = useRef(0);
   const [toastVisible, setToastVisible] = React.useState(false);
 
   const showToast = useCallback((message: string) => {
@@ -176,6 +177,7 @@ export default function AppPage() {
       setView("profile");
       return;
     }
+    const requestId = ++googleCalendarRequest.current;
     setGoogleCalendarBusy(true);
     try {
       const start = new Date();
@@ -183,6 +185,7 @@ export default function AppPage() {
       const end = new Date();
       end.setDate(end.getDate() + 60);
       const events = await fetchGoogleCalendarEvents(start, end);
+      if (requestId !== googleCalendarRequest.current) return;
       const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
       const imported = events
         .map((event, index) => {
@@ -190,32 +193,44 @@ export default function AppPage() {
           const finish = new Date(event.end);
           return {
             id: `gcal-${event.id || index}`,
+            googleCalendarId: event.id,
             subject: event.summary,
             teacher: "Google Calendar",
             room: event.location || "",
             day: dayNames[begin.getDay()],
-            start: begin.toTimeString().slice(0, 5),
-            end: finish.toTimeString().slice(0, 5),
+            start: event.allDay ? "00:00" : begin.toTimeString().slice(0, 5),
+            end: event.allDay ? "23:59" : finish.toTimeString().slice(0, 5),
             color: "blue" as const,
             imported: true,
+            allDay: event.allDay,
           };
         })
         .filter((event) =>
           ["MON", "TUE", "WED", "THU", "FRI"].includes(event.day),
         );
-      const existing = new Set(
-        useTimelyStore.getState().classes.map((item) => item.id),
-      );
+      const importedIds = new Set(imported.map((item) => item.id));
+      const state = useTimelyStore.getState();
+      state.classes
+        .filter(
+          (item) =>
+            item.imported && item.googleCalendarId && !importedIds.has(item.id),
+        )
+        .forEach((item) => deleteClass(item.id));
       imported.forEach((item) => {
-        if (!existing.has(item.id)) addClass(item);
+        const existing = useTimelyStore
+          .getState()
+          .classes.find((current) => current.id === item.id);
+        if (existing) updateClass(item.id, item);
+        else addClass(item);
       });
       showToast(`${imported.length} Google Calendar events synced`);
     } catch (error: any) {
       showToast(error?.message || "Google Calendar sync failed");
     } finally {
-      setGoogleCalendarBusy(false);
+      if (requestId === googleCalendarRequest.current)
+        setGoogleCalendarBusy(false);
     }
-  }, [addClass, setView, showToast]);
+  }, [addClass, deleteClass, setView, showToast, updateClass]);
 
   const handleAddClass = useCallback(
     (cls: ClassEvent) => {
@@ -330,7 +345,7 @@ export default function AppPage() {
     // If we were on assistant and moved away, save + start new chat
     if (prev === "assistant" && currentView !== "assistant") {
       const msgs = useTimelyStore.getState().chatMessages;
-      if (msgs.some(m => m.user)) {
+      if (msgs.some((m) => m.user)) {
         saveChat();
         startNewChat();
       }
@@ -341,7 +356,7 @@ export default function AppPage() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       const state = useTimelyStore.getState();
-      if (state.chatMessages.some(m => m.user)) {
+      if (state.chatMessages.some((m) => m.user)) {
         state.saveChat();
       }
     };

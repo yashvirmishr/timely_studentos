@@ -28,7 +28,7 @@ export default function Topbar({ currentView, onOpenSearch, onToggleNotification
         <span className="material-symbols-outlined">chevron_right</span>
         <strong>{VIEW_NAMES[currentView]}</strong>
       </div>
-      <div style={{ flex: 1 }} />
+      <div className="topbar-spacer" />
       <div className="topbar-actions">
         {pomodoro && <TopbarPomodoro p={pomodoro} />}
         <button className="search-trigger" onClick={onOpenSearch}>
