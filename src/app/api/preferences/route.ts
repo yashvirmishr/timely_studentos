@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { pickFields } from '@/lib/api-validation';
 
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
@@ -28,7 +29,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
@@ -36,11 +37,12 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json();
+  const safeBody = pickFields('profiles', body, 'update');
   const { data, error } = await supabase
     .from('profiles')
     .upsert({ 
       user_id: user.id, 
-      ...body,
+      ...safeBody,
       updated_at: new Date().toISOString()
     })
     .select()

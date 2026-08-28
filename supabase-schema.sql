@@ -242,6 +242,12 @@ CREATE POLICY "Users can view own chat messages" ON public.chat_messages
 CREATE POLICY "Users can insert own chat messages" ON public.chat_messages
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can update own chat messages" ON public.chat_messages
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own chat messages" ON public.chat_messages
+  FOR DELETE USING (auth.uid() = user_id);
+
 CREATE POLICY "Users can view own notifications" ON public.notifications
   FOR SELECT USING (auth.uid() = user_id);
 
@@ -262,6 +268,9 @@ CREATE POLICY "Users can insert own AI config" ON public.ai_config
 
 CREATE POLICY "Users can update own AI config" ON public.ai_config
   FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own AI config" ON public.ai_config
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION public.handle_updated_at()

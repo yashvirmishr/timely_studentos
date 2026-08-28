@@ -90,8 +90,9 @@ export default function ScheduleView({
   const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
   const isCurrentWeek = weekOffset === 0;
 
-  // --- AI-powered smart suggestion ---
-  const [suggestion, setSuggestion] = useState<ScheduleSuggestion | null>(null);
+  // --- AI-powered smart suggestions (carousel) ---
+  const [suggestions, setSuggestions] = useState<ScheduleSuggestion[]>([]);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const suggestionFetched = useRef(false);
 
@@ -99,13 +100,14 @@ export default function ScheduleView({
     if (!aiOnline || !aiEnabled || classes.length === 0) return;
     setSuggestionLoading(true);
     try {
-      const { generateScheduleSuggestion } = await import("@/lib/local-ai");
-      const result = await generateScheduleSuggestion({
+      const { generateScheduleSuggestions } = await import("@/lib/local-ai");
+      const result = await generateScheduleSuggestions({
         classes: classes.map(c => ({ subject: c.subject, day: c.day, start: c.start, end: c.end, room: c.room, teacher: c.teacher })),
         tasks: tasks.map(t => ({ title: t.title, subject: t.subject, due: t.due, priority: t.priority, completed: t.completed })),
         subjects: subjects.map(s => ({ name: s.name, preparedness: s.preparedness, tasksDue: s.tasksDue, urgent: s.urgent })),
       });
-      setSuggestion(result);
+      setSuggestions(result);
+      setSuggestionIndex(0);
     } catch {
       // Silently fall back — suggestions are non-critical
     } finally {
@@ -285,18 +287,43 @@ export default function ScheduleView({
       )}
       {aiOnline && suggestionLoading && classes.length > 0 && (
         <div className="schedule-note">
-          <span className="material-symbols-outlined spin" style={{ animation: "spin 1s linear infinite" }}>auto_awesome</span>
-          <span><strong>Thinking of a smart suggestion…</strong></span>
+          <span className="material-symbols-outlined" style={{ animation: "spin 1s linear infinite" }}>auto_awesome</span>
+          <span><strong>Thinking of smart suggestions…</strong></span>
+          <button className="icon-button small" disabled aria-label="Loading suggestions" style={{ opacity: 0.4 }}>
+            <span className="material-symbols-outlined">refresh</span>
+          </button>
         </div>
       )}
-      {aiOnline && !suggestionLoading && suggestion && classes.length > 0 && (
-        <div className="schedule-note">
+      {aiOnline && !suggestionLoading && suggestions.length > 0 && classes.length > 0 && (
+        <div className="schedule-note" style={{ gap: 12 }}>
           <span className="material-symbols-outlined">auto_awesome</span>
-          <span>
-            <strong>Smart suggestion:</strong> {suggestion.text}
+          <button
+            className="icon-button small"
+            onClick={() => setSuggestionIndex(i => (i - 1 + suggestions.length) % suggestions.length)}
+            aria-label="Previous suggestion"
+            style={{ flexShrink: 0 }}
+          >
+            <span className="material-symbols-outlined">chevron_left</span>
+          </button>
+          <span style={{ flex: 1 }}>
+            <strong>Smart suggestion:</strong> {suggestions[suggestionIndex].text}
           </span>
-          <button className="text-button" onClick={() => onOpenQuickAdd(suggestion.actionType === "study_block" || suggestion.actionType === "task" ? "task" : "event")}>
-            {suggestion.actionLabel || "Got it"}
+          <button
+            className="icon-button small"
+            onClick={() => setSuggestionIndex(i => (i + 1) % suggestions.length)}
+            aria-label="Next suggestion"
+            style={{ flexShrink: 0 }}
+          >
+            <span className="material-symbols-outlined">chevron_right</span>
+          </button>
+          <span style={{ font: '9px "DM Mono", monospace', color: '#aaa79e', flexShrink: 0 }}>
+            {suggestionIndex + 1}/{suggestions.length}
+          </span>
+          <button className="icon-button small" onClick={fetchSuggestion} disabled={suggestionLoading} aria-label="Refresh suggestions" title="Get new suggestions">
+            <span className="material-symbols-outlined">refresh</span>
+          </button>
+          <button className="text-button" onClick={() => onOpenQuickAdd(suggestions[suggestionIndex].actionType === "study_block" || suggestions[suggestionIndex].actionType === "task" ? "task" : "event")}>
+            {suggestions[suggestionIndex].actionLabel || "Got it"}
           </button>
         </div>
       )}

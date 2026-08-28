@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { pickFields } from '@/lib/api-validation';
 
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
@@ -23,7 +24,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
@@ -31,9 +32,10 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
+  const safeBody = pickFields('saved_chats', body, 'create');
   const { data, error } = await supabase
     .from('saved_chats')
-    .insert({ ...body, user_id: user.id })
+    .insert({ ...safeBody, user_id: user.id })
     .select()
     .single();
 
