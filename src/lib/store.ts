@@ -128,6 +128,7 @@ interface TimelyState {
   clearPendingAiActions: () => void;
 
   syncWithSupabase: () => Promise<void>;
+  pullOnlyFromSupabase: () => Promise<void>;
   pullFromSupabase: () => Promise<void>;
   pushToSupabase: () => Promise<void>;
 
@@ -641,6 +642,20 @@ export const useTimelyStore = create<TimelyState>()(
       clearPendingAiActions: () => set({ pendingAiActions: [] }),
 
       setUserId: (id) => set({ userId: id }),
+
+      pullOnlyFromSupabase: async () => {
+        const { userId } = get();
+        if (!userId) return;
+
+        set({ syncStatus: "syncing" });
+        try {
+          await get().pullFromSupabase();
+          set({ syncStatus: "synced", lastSyncedAt: Date.now() });
+        } catch (error) {
+          console.error("Supabase pull failed:", error);
+          set({ syncStatus: "error" });
+        }
+      },
 
       syncWithSupabase: async () => {
         const { userId } = get();

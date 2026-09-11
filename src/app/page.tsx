@@ -66,7 +66,7 @@ import UpdateChecker from "@/components/UpdateChecker";
 import { usePomodoro } from "@/lib/usePomodoro";
 import { useTimelyStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { signOut } from "@/lib/supabase/auth";
+import { signOut, useSupabaseSync } from "@/lib/supabase/auth";
 import {
   fetchGoogleCalendarEvents,
   getGoogleCalendarConfig,
@@ -96,6 +96,9 @@ export default function AppPage() {
       }
     });
   }, [router]);
+
+  // Sync user data with Supabase on login
+  useSupabaseSync();
 
   const {
     currentView,
@@ -828,6 +831,7 @@ export default function AppPage() {
               setNoteAiTarget={setNoteAiTarget}
               homeworkReview={homeworkReview}
               setHomeworkReview={setHomeworkReview}
+              subjects={subjects}
             />
           )}
           {currentView === "files" && (
@@ -881,6 +885,7 @@ export default function AppPage() {
           onShowToast={showToast}
           editingId={editingId}
           setEditingId={setEditingId}
+          subjects={subjects}
         />
       )}
       {showImport && (
