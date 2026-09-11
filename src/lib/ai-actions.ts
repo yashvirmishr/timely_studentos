@@ -351,6 +351,9 @@ export function executeAiAction(
         priority: "high",
         completed: false,
         custom: true,
+        // A reminder is only real if the deadline engine will actually fire
+        // the day-before alert for it.
+        remind: true,
       };
       store.addTask(task);
       return { success: true, message: `Reminder set: ${task.title}` };

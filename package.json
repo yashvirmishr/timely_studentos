@@ -9,7 +9,8 @@
     "tauri": "tauri",
     "tauri:signer": "tauri signer generate -w ~/.tauri/timely.key",
     "test:e2e": "pytest tests/test_e2e_workflows.py -v --tb=short",
-    "test": "pytest tests/ -v --tb=short"
+    "test": "pytest tests/ -v --tb=short",
+    "test:isolation": "node --import ./tests/alias-loader.mjs tests/verify_data_isolation.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

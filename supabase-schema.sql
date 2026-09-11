@@ -8,10 +8,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
-  profile_name TEXT DEFAULT 'Alex Vale',
+  -- Empty by default: a new account must never inherit a stranger's name.
+  profile_name TEXT DEFAULT '',
   theme TEXT CHECK (theme IN ('paper', 'dark', 'light')) DEFAULT 'paper',
   reduce_motion BOOLEAN DEFAULT FALSE,
   notifications BOOLEAN DEFAULT TRUE,
+  onboarded BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -94,6 +96,7 @@ CREATE TABLE IF NOT EXISTS public.files (
   subject TEXT NOT NULL,
   updated TEXT NOT NULL,
   size TEXT NOT NULL,
+  drive_file_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -320,3 +323,29 @@ CREATE INDEX IF NOT EXISTS idx_saved_chats_user_id ON public.saved_chats(user_id
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON public.chat_messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON public.chat_messages(chat_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+
+-- ============================================================
+-- MIGRATION — run this block if you created the tables before 2026-09-11.
+-- It is idempotent, so it is safe to run at any time.
+-- ============================================================
+
+-- Onboarding is now tracked server-side (a localStorage flag alone let a new
+-- device send an existing user back through setup, and let an old flag let a
+-- new account skip it).
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS onboarded BOOLEAN DEFAULT FALSE;
+
+-- Files synced to Google Drive need to remember their Drive id, otherwise the
+-- client cannot upload/download/delete them.
+ALTER TABLE public.files
+  ADD COLUMN IF NOT EXISTS drive_file_id TEXT;
+
+-- New accounts must not inherit a display name.
+ALTER TABLE public.profiles
+  ALTER COLUMN profile_name SET DEFAULT '';
+
+UPDATE public.profiles SET profile_name = '' WHERE profile_name = 'Alex Vale';
+-- Tasks can carry a "remind me the day before" flag used by the deadline
+-- notification engine.
+ALTER TABLE public.tasks
+  ADD COLUMN IF NOT EXISTS remind BOOLEAN DEFAULT FALSE;

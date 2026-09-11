@@ -17,6 +17,7 @@ export interface Database {
           theme: 'paper' | 'dark' | 'light';
           reduce_motion: boolean;
           notifications: boolean;
+          onboarded: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -27,6 +28,7 @@ export interface Database {
           theme?: 'paper' | 'dark' | 'light';
           reduce_motion?: boolean;
           notifications?: boolean;
+          onboarded?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -37,6 +39,7 @@ export interface Database {
           theme?: 'paper' | 'dark' | 'light';
           reduce_motion?: boolean;
           notifications?: boolean;
+          onboarded?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -54,6 +57,7 @@ export interface Database {
           completed: boolean;
           custom: boolean;
           notes: string | null;
+          remind: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -68,6 +72,7 @@ export interface Database {
           completed?: boolean;
           custom?: boolean;
           notes?: string;
+          remind?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -82,6 +87,7 @@ export interface Database {
           completed?: boolean;
           custom?: boolean;
           notes?: string;
+          remind?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -246,6 +252,7 @@ export interface Database {
           subject: string;
           updated: string;
           size: string;
+          drive_file_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -257,6 +264,7 @@ export interface Database {
           subject: string;
           updated: string;
           size: string;
+          drive_file_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -268,6 +276,7 @@ export interface Database {
           subject?: string;
           updated?: string;
           size?: string;
+          drive_file_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

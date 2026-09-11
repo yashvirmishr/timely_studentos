@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import type { Note, AddType } from "@/lib/types";
+import type { Note, AddType, Subject } from "@/lib/types";
 import { chatWithLocalAi } from "@/lib/local-ai";
 
 interface NotesViewProps {
@@ -13,30 +13,10 @@ interface NotesViewProps {
   onOpenQuickAdd: (type: AddType, item?: Note) => void;
   noteAiTarget: Note | null;
   setNoteAiTarget: (note: Note | null) => void;
-  homeworkReview: Record<string, unknown> | null;
-  setHomeworkReview: (review: Record<string, unknown> | null) => void;
+  subjects: Subject[];
 }
 
-const SUBJECT_COLORS: Record<string, "yellow" | "blue" | "lilac" | "green" | "red"> = {
-  "World History": "yellow",
-  "Advanced Calculus": "blue",
-  "English Literature": "lilac",
-  "Art & Design": "green",
-};
 
-function formatAgo(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "JUST NOW";
-  if (diffMins < 60) return `${diffMins} MIN AGO`;
-  if (diffHours < 24) return `${diffHours} HOUR${diffHours !== 1 ? "S" : ""} AGO`;
-  if (diffDays < 7) return `${diffDays} DAY${diffDays !== 1 ? "S" : ""} AGO`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
-}
 
 export default function NotesView({
   notes,
@@ -46,9 +26,11 @@ export default function NotesView({
   onOpenQuickAdd,
   noteAiTarget,
   setNoteAiTarget,
-  homeworkReview,
-  setHomeworkReview,
+  subjects,
 }: NotesViewProps) {
+  const subjectColorMap = Object.fromEntries(
+    subjects.map(s => [s.name, s.color])
+  ) as Record<string, "yellow" | "blue" | "lilac" | "green" | "red">;
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSubject, setFilterSubject] = useState("All notes");
   const [showAiModal, setShowAiModal] = useState(false);
@@ -67,7 +49,7 @@ export default function NotesView({
     return matchesSearch && matchesFilter;
   });
 
-  const subjects = ["All notes", ...Array.from(new Set(notes.map(n => n.subject)))];
+  const filterSubjects = ["All notes", ...Array.from(new Set(notes.map(n => n.subject)))];
 
   const handleAiSummary = (note: Note) => {
     setNoteAiTarget(note);
@@ -112,7 +94,9 @@ export default function NotesView({
           <p className="eyebrow">Your thinking, collected</p>
           <h1>Notes <span className="yellow-underline">library</span></h1>
           <p className="heading-subtitle">
-            {notes.length} notes · Last edited {notes.length > 0 ? formatAgo(new Date()) : "never"}
+            {notes.length} note{notes.length === 1 ? "" : "s"}
+            {/* "Last edited" comes from the most recent note, never from the clock. */}
+            {notes[0]?.ago ? ` · Last edited ${notes[0].ago.toLowerCase()}` : ""}
           </p>
         </div>
         <button className="primary-button" onClick={() => onOpenQuickAdd("note")}>
@@ -129,7 +113,7 @@ export default function NotesView({
           />
         </div>
         <div className="filter-pills">
-          {subjects.map((s, i) => (
+          {filterSubjects.map((s, i) => (
             <button key={i} className={filterSubject === s ? "active" : ""} onClick={() => setFilterSubject(s)}>
               {s}
             </button>
@@ -145,7 +129,7 @@ export default function NotesView({
           </div>
         ) : (
           filteredNotes.map(note => (
-            <article key={note.id} className={`note-card ${SUBJECT_COLORS[note.subject] || "yellow"}-note ${note.pinned ? "pinned" : ""}`}>
+            <article key={note.id} className={`note-card ${subjectColorMap[note.subject] || "yellow"}-note ${note.pinned ? "pinned" : ""}`}>
               {note.pinned && <span className="note-pin" />}
               <span className="note-label">{note.subject.toUpperCase()} · {note.ago}</span>
               <h3>{note.title}</h3>

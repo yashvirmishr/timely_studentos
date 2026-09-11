@@ -8,6 +8,22 @@ import type {
   FileItem,
   ChatMessage,
 } from "@/lib/types";
+import {
+  setPersistenceErrorHandler,
+  setPersistenceNotifier,
+  setSchemaDriftHandler,
+  queueDelete,
+  queueUpsert,
+  queueUpsertMany,
+  resetPersistenceQueue,
+} from "@/lib/supabase/persistence";
+import { clearUserScopedStorage } from "@/lib/user-scope";
+import type { RemoteSnapshot } from "@/lib/supabase/sync";
+import {
+  buildHydrationPatch,
+  EMPTY_AI_CONFIG as DEFAULT_AI_CONFIG,
+  EMPTY_PREFERENCES as DEFAULT_PREFERENCES,
+} from "@/lib/supabase/hydrate";
 
 // Re-export all types from the single source of truth
 export type {
@@ -56,13 +72,26 @@ interface TimelyState {
   importSource: string;
   importReview: ClassEvent[];
   importConfidence: number | null;
-  homeworkReview: Record<string, unknown> | null;
   noteAiTarget: Note | null;
   editingId: string | null;
   pendingAiActions: PendingAiAction[];
   syncStatus: "idle" | "syncing" | "synced" | "error";
+  syncError: string | null;
   lastSyncedAt: number | null;
   userId: string | null;
+  /** Whether this account finished onboarding (server-side source of truth). */
+  onboarded: boolean;
+  /**
+   * Whether the database can actually answer the `onboarded` question. Starts
+   * optimistic and is downgraded only when a read proves the column is absent;
+   * while false, `onboarded` is this device's own record and the server value is
+   * never allowed to overwrite it.
+   */
+  onboardedKnown: boolean;
+  /** Set when the database is missing a column this build expects. */
+  schemaWarning: string | null;
+  /** True once the account's profile row has actually been read. */
+  profileLoaded: boolean;
   // UI state (not persisted)
   showQuickAdd: boolean;
   showImport: boolean;
@@ -77,6 +106,8 @@ interface TimelyState {
   setShowSearch: (show: boolean) => void;
   setShowNotifications: (show: boolean) => void;
   setUserId: (id: string | null) => void;
+  setOnboarded: (value: boolean) => void;
+  resetStoreToDefaults: () => void;
 
   addTask: (task: Task) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
@@ -121,14 +152,13 @@ interface TimelyState {
   setImportSource: (source: string) => void;
   setImportReview: (classes: ClassEvent[]) => void;
   setImportConfidence: (conf: number | null) => void;
-  setHomeworkReview: (review: Record<string, unknown> | null) => void;
   setNoteAiTarget: (note: Note | null) => void;
 
   addPendingAiAction: (action: PendingAiAction) => void;
   removePendingAiAction: (id: string) => void;
   clearPendingAiActions: () => void;
 
-  syncWithSupabase: () => Promise<void>;
+  hydrateFromRemote: (snapshot: RemoteSnapshot) => void;
   pullOnlyFromSupabase: () => Promise<void>;
   pullFromSupabase: () => Promise<void>;
   pushToSupabase: () => Promise<void>;
@@ -138,336 +168,83 @@ interface TimelyState {
   getUnreadNotificationCount: () => number;
 }
 
-const DEFAULT_PREFERENCES: Preferences = {
-  notifications: true,
-  theme: "paper",
-  reduceMotion: false,
-  profileName: "Alex Vale",
-};
-
-const DEFAULT_AI_CONFIG: AiConfig = {
-  apiKey: "",
-  model: "gemini-2.5-flash",
-  enabled: false,
-};
-
-const SEED_SUBJECTS: Subject[] = [
-  {
-    id: "calculus",
-    name: "Advanced Calculus",
-    teacher: "Dr. Mei Chen",
-    room: "C02",
-    symbol: "∫",
-    color: "blue",
-    preparedness: 62,
-    tasksDue: 3,
-    tag: "Midterm in 6d",
-    urgent: true,
-  },
-  {
-    id: "english",
-    name: "English Literature",
-    teacher: "Jamie Morgan",
-    room: "B14",
-    symbol: "Aa",
-    color: "lilac",
-    preparedness: 84,
-    tasksDue: 1,
-    tag: "Mrs Dalloway",
-  },
-  {
-    id: "art",
-    name: "Art & Design",
-    teacher: "Sofia Kim",
-    room: "Studio 3",
-    symbol: "✎",
-    color: "green",
-    preparedness: 71,
-    tasksDue: 2,
-    tag: "Sketchbook",
-  },
-  {
-    id: "history",
-    name: "World History",
-    teacher: "Priya Shah",
-    room: "A21",
-    symbol: "◈",
-    color: "yellow",
-    preparedness: 48,
-    tasksDue: 6,
-    tag: "Needs focus",
-    urgent: true,
-  },
+/**
+ * Signatures of the demo workspace that older builds persisted into the
+ * browser. Used to purge it on upgrade so it can never masquerade as real data.
+ */
+const LEGACY_DEMO_MARKERS = [
+  "Finish History essay introduction",
+  "Complete integration problem set",
+  "Read chapter 4 — Mrs Dalloway",
+  "Industrial revolution — key threads",
+  "Calculus_midterm_syllabus.pdf",
+  "Dr. Mei Chen",
+  "Mrs Dalloway",
 ];
 
-const SEED_TASKS: Task[] = [
-  {
-    id: "t1",
-    title: "Finish History essay introduction",
-    subject: "World History",
-    due: "tomorrow",
-    time: "45 min",
-    priority: "high",
-    completed: false,
-    custom: false,
-  },
-  {
-    id: "t2",
-    title: "Complete integration problem set",
-    subject: "Advanced Calculus",
-    due: "Thu",
-    time: "30 min",
-    priority: "medium",
-    completed: false,
-    custom: false,
-  },
-  {
-    id: "t3",
-    title: "Read chapter 4 — Mrs Dalloway",
-    subject: "English Literature",
-    due: "completed",
-    time: "20 min",
-    priority: "low",
-    completed: true,
-    custom: false,
-  },
-];
+export function containsLegacyDemoData(state: Record<string, any>): boolean {
+  const blob = JSON.stringify({
+    tasks: state.tasks,
+    classes: state.classes,
+    subjects: state.subjects,
+    notes: state.notes,
+    files: state.files,
+    savedChats: state.savedChats,
+  });
+  return LEGACY_DEMO_MARKERS.some((marker) => blob.includes(marker));
+}
 
-const SEED_CLASSES: ClassEvent[] = [
-  {
-    id: "c1",
-    subject: "English Literature",
-    teacher: "Jamie Morgan",
-    room: "B14",
-    day: "MON",
-    start: "08:30",
-    end: "09:45",
-    color: "lilac",
-  },
-  {
-    id: "c2",
-    subject: "Advanced Calculus",
-    teacher: "Dr. Mei Chen",
-    room: "C02",
-    day: "MON",
-    start: "10:00",
-    end: "11:15",
-    color: "blue",
-  },
-  {
-    id: "c3",
-    subject: "Art & Design",
-    teacher: "Sofia Kim",
-    room: "Studio 3",
-    day: "MON",
-    start: "11:30",
-    end: "13:00",
-    color: "green",
-  },
-  {
-    id: "c4",
-    subject: "English Literature",
-    teacher: "Jamie Morgan",
-    room: "B14",
-    day: "TUE",
-    start: "08:30",
-    end: "09:45",
-    color: "lilac",
-  },
-  {
-    id: "c5",
-    subject: "Advanced Calculus",
-    teacher: "Dr. Mei Chen",
-    room: "C02",
-    day: "TUE",
-    start: "10:00",
-    end: "11:15",
-    color: "blue",
-  },
-  {
-    id: "c6",
-    subject: "Art & Design",
-    teacher: "Sofia Kim",
-    room: "Studio 3",
-    day: "TUE",
-    start: "11:30",
-    end: "13:00",
-    color: "green",
-  },
-  {
-    id: "c7",
-    subject: "World History",
-    teacher: "Priya Shah",
-    room: "A21",
-    day: "WED",
-    start: "14:00",
-    end: "15:15",
-    color: "yellow",
-  },
-  {
-    id: "c8",
-    subject: "Biology",
-    teacher: "Ravi Patel",
-    room: "Lab 2",
-    day: "THU",
-    start: "09:00",
-    end: "10:15",
-    color: "blue",
-  },
-  {
-    id: "c9",
-    subject: "University counselling",
-    teacher: "Student Services",
-    room: "A03",
-    day: "THU",
-    start: "16:00",
-    end: "16:45",
-    color: "red",
-  },
-  {
-    id: "c10",
-    subject: "Advanced Calculus",
-    teacher: "Dr. Mei Chen",
-    room: "C02",
-    day: "FRI",
-    start: "10:00",
-    end: "11:15",
-    color: "blue",
-  },
-  {
-    id: "c11",
-    subject: "English Literature",
-    teacher: "Jamie Morgan",
-    room: "B14",
-    day: "FRI",
-    start: "14:00",
-    end: "15:15",
-    color: "lilac",
-  },
-];
-
-const SEED_NOTES: Note[] = [
-  {
-    id: "n1",
-    subject: "World History",
-    ago: "18 MIN AGO",
-    title: "Industrial revolution — key threads",
-    preview:
-      "Steam power didn't just change factories. It changed where people lived, worked, and...",
-    color: "yellow",
-    pinned: true,
-    hasAiSummary: true,
-  },
-  {
-    id: "n2",
-    subject: "Advanced Calculus",
-    ago: "YESTERDAY",
-    title: "Integration by parts",
-    preview:
-      "u dv = uv − ∫ v du\n\nRemember: choose u wisely — logs and inverse trig usually win.",
-    color: "blue",
-    hasAiSummary: true,
-  },
-  {
-    id: "n3",
-    subject: "English Literature",
-    ago: "MAR 08",
-    title: "Mrs Dalloway — first impressions",
-    preview:
-      '"She had the oddest sense of being herself invisible; unseen; unknown..."',
-    color: "lilac",
-  },
-];
-
-const SEED_FILES: FileItem[] = [
-  {
-    id: "f1",
-    name: "Calculus_midterm_syllabus.pdf",
-    type: "pdf",
-    subject: "Advanced Calculus",
-    updated: "Today, 09:14",
-    size: "2.4 MB",
-  },
-  {
-    id: "f2",
-    name: "History_essay_draft.docx",
-    type: "doc",
-    subject: "World History",
-    updated: "Yesterday",
-    size: "840 KB",
-  },
-  {
-    id: "f3",
-    name: "visual_research_board.png",
-    type: "img",
-    subject: "Art & Design",
-    updated: "Mar 08",
-    size: "4.1 MB",
-  },
-];
-
-const SEED_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "notification-1",
-    tone: "red",
-    icon: "school",
-    title: "Calculus midterm is in 6 days",
-    detail: "42% prepared · keep it moving",
-    read: false,
-  },
-  {
-    id: "notification-2",
-    tone: "blue",
-    icon: "event",
-    title: "Counselling on Thursday",
-    detail: "Room A03 · 4:00 PM",
-    read: false,
-  },
-];
-
-const SEED_CHAT: ChatMessage[] = [
-  {
-    id: "m1",
-    text: "Hey Alex! I've got your day in view. What should we figure out?",
-    user: false,
-  },
-];
+/** Opening line of the study chat, without any assumed user name. */
+export const CHAT_GREETING =
+  "Hey! I've got your day in view. What should we figure out?";
 
 const MAX_CHAT_MESSAGES = 50;
 const keepRecentChat = (messages: ChatMessage[]) =>
   messages.slice(-MAX_CHAT_MESSAGES);
 
+function freshState() {
+  return {
+    currentView: "home" as ViewName,
+    addType: "task" as AddType,
+    tasks: [] as Task[],
+    classes: [] as ClassEvent[],
+    subjects: [] as Subject[],
+    notes: [] as Note[],
+    files: [] as FileItem[],
+    notifications: [] as NotificationItem[],
+    preferences: { ...DEFAULT_PREFERENCES },
+    weekOffset: 0,
+    scheduleTab: "week" as ScheduleTab,
+    academicFilter: "all" as AcademicFilter,
+    chatMessages: [
+      { id: "m1", text: CHAT_GREETING, user: false },
+    ] as ChatMessage[],
+    savedChats: [],
+    activeSavedChatId: null,
+    aiConfig: { ...DEFAULT_AI_CONFIG },
+    aiOnline: false,
+    importedClasses: [],
+    importSource: "",
+    importReview: [],
+    importConfidence: null,
+    noteAiTarget: null,
+    editingId: null,
+    pendingAiActions: [],
+    syncStatus: "idle" as const,
+    syncError: null,
+    lastSyncedAt: null,
+    userId: null as string | null,
+    onboarded: false,
+    onboardedKnown: true,
+    schemaWarning: null,
+    profileLoaded: false,
+  };
+}
+
 export const useTimelyStore = create<TimelyState>()(
   persist(
     (set, get) => ({
-      currentView: "home",
-      addType: "task",
-      tasks: SEED_TASKS,
-      classes: SEED_CLASSES,
-      subjects: SEED_SUBJECTS,
-      notes: SEED_NOTES,
-      files: SEED_FILES,
-      notifications: SEED_NOTIFICATIONS,
-      preferences: DEFAULT_PREFERENCES,
-      weekOffset: 0,
-      scheduleTab: "week",
-      academicFilter: "all",
-      chatMessages: SEED_CHAT,
-      savedChats: [],
-      activeSavedChatId: null,
-      aiConfig: DEFAULT_AI_CONFIG,
-      aiOnline: false,
-      importedClasses: [],
-      importSource: "",
-      importReview: [],
-      importConfidence: null,
-      homeworkReview: null,
-      noteAiTarget: null,
-      editingId: null,
-      pendingAiActions: [],
-      syncStatus: "idle" as const,
-      lastSyncedAt: null,
-      userId: null,
+      ...freshState(),
       // UI state (not persisted)
       showQuickAdd: false,
       showImport: false,
@@ -481,81 +258,147 @@ export const useTimelyStore = create<TimelyState>()(
       setShowImport: (show) => set({ showImport: show }),
       setShowSearch: (show) => set({ showSearch: show }),
       setShowNotifications: (show) => set({ showNotifications: show }),
+      setUserId: (id) => set({ userId: id }),
 
-      addTask: (task) => set((state) => ({ tasks: [task, ...state.tasks] })),
-      updateTask: (id, updates) =>
+      setOnboarded: (value) => {
+        set({ onboarded: value });
+        const { userId, preferences, onboardedKnown } = get();
+        // Skip the write when a read already proved the column is absent: it is
+        // guaranteed to be rejected, and retrying it forever is what left the
+        // account stuck. The local flag still records completion.
+        if (value && userId && onboardedKnown) {
+          queueUpsert("profiles", userId, { ...preferences, onboarded: true });
+        }
+      },
+
+      addTask: (task) => {
+        set((state) => ({ tasks: [task, ...state.tasks] }));
+        queueUpsert("tasks", get().userId, task);
+      },
+      updateTask: (id, updates) => {
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === id ? { ...t, ...updates } : t,
           ),
-        })),
-      deleteTask: (id) =>
-        set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) })),
-      toggleTask: (id) =>
+        }));
+        const task = get().tasks.find((t) => t.id === id);
+        if (task) queueUpsert("tasks", get().userId, task);
+      },
+      deleteTask: (id) => {
+        set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
+        queueDelete("tasks", get().userId, id);
+      },
+      toggleTask: (id) => {
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === id ? { ...t, completed: !t.completed } : t,
           ),
-        })),
+        }));
+        const task = get().tasks.find((t) => t.id === id);
+        if (task) queueUpsert("tasks", get().userId, task);
+      },
 
-      addClass: (cls) => set((state) => ({ classes: [...state.classes, cls] })),
-      updateClass: (id, updates) =>
+      addClass: (cls) => {
+        set((state) => ({ classes: [...state.classes, cls] }));
+        queueUpsert("classes", get().userId, cls);
+      },
+      updateClass: (id, updates) => {
         set((state) => ({
           classes: state.classes.map((c) =>
             c.id === id ? { ...c, ...updates } : c,
           ),
-        })),
-      deleteClass: (id) =>
-        set((state) => ({ classes: state.classes.filter((c) => c.id !== id) })),
+        }));
+        const cls = get().classes.find((c) => c.id === id);
+        if (cls) queueUpsert("classes", get().userId, cls);
+      },
+      deleteClass: (id) => {
+        set((state) => ({ classes: state.classes.filter((c) => c.id !== id) }));
+        queueDelete("classes", get().userId, id);
+      },
 
-      addSubject: (subject) =>
-        set((state) => ({ subjects: [...state.subjects, subject] })),
-      updateSubject: (id, updates) =>
+      addSubject: (subject) => {
+        set((state) => ({ subjects: [...state.subjects, subject] }));
+        queueUpsert("subjects", get().userId, subject);
+      },
+      updateSubject: (id, updates) => {
         set((state) => ({
           subjects: state.subjects.map((s) =>
             s.id === id ? { ...s, ...updates } : s,
           ),
-        })),
-      deleteSubject: (id) =>
+        }));
+        const subject = get().subjects.find((s) => s.id === id);
+        if (subject) queueUpsert("subjects", get().userId, subject);
+      },
+      deleteSubject: (id) => {
         set((state) => ({
           subjects: state.subjects.filter((s) => s.id !== id),
-        })),
+        }));
+        queueDelete("subjects", get().userId, id);
+      },
 
-      addNote: (note) => set((state) => ({ notes: [note, ...state.notes] })),
-      updateNote: (id, updates) =>
+      addNote: (note) => {
+        set((state) => ({ notes: [note, ...state.notes] }));
+        queueUpsert("notes", get().userId, note);
+      },
+      updateNote: (id, updates) => {
         set((state) => ({
           notes: state.notes.map((n) =>
             n.id === id ? { ...n, ...updates } : n,
           ),
-        })),
-      deleteNote: (id) =>
-        set((state) => ({ notes: state.notes.filter((n) => n.id !== id) })),
+        }));
+        const note = get().notes.find((n) => n.id === id);
+        if (note) queueUpsert("notes", get().userId, note);
+      },
+      deleteNote: (id) => {
+        set((state) => ({ notes: state.notes.filter((n) => n.id !== id) }));
+        queueDelete("notes", get().userId, id);
+      },
 
-      addFile: (file) => set((state) => ({ files: [file, ...state.files] })),
-      updateFile: (id, updates) =>
+      addFile: (file) => {
+        set((state) => ({ files: [file, ...state.files] }));
+        queueUpsert("files", get().userId, file);
+      },
+      updateFile: (id, updates) => {
         set((state) => ({
-          files: state.files.map((f) => (f.id === id ? { ...f, ...updates } : f)),
-        })),
-      deleteFile: (id) =>
-        set((state) => ({ files: state.files.filter((f) => f.id !== id) })),
+          files: state.files.map((f) =>
+            f.id === id ? { ...f, ...updates } : f,
+          ),
+        }));
+        const file = get().files.find((f) => f.id === id);
+        if (file) queueUpsert("files", get().userId, file);
+      },
+      deleteFile: (id) => {
+        set((state) => ({ files: state.files.filter((f) => f.id !== id) }));
+        queueDelete("files", get().userId, id);
+      },
 
-      addNotification: (notification) =>
+      addNotification: (notification) => {
         set((state) => ({
           notifications: [notification, ...state.notifications],
-        })),
-      markNotificationRead: (id) =>
+        }));
+        queueUpsert("notifications", get().userId, notification);
+      },
+      markNotificationRead: (id) => {
         set((state) => ({
           notifications: state.notifications.map((n) =>
             n.id === id ? { ...n, read: true } : n,
           ),
-        })),
-      markAllNotificationsRead: () =>
+        }));
+        const notification = get().notifications.find((n) => n.id === id);
+        if (notification) queueUpsert("notifications", get().userId, notification);
+      },
+      markAllNotificationsRead: () => {
         set((state) => ({
           notifications: state.notifications.map((n) => ({ ...n, read: true })),
-        })),
+        }));
+        queueUpsertMany("notifications", get().userId, get().notifications);
+      },
 
-      setPreferences: (prefs) =>
-        set((state) => ({ preferences: { ...state.preferences, ...prefs } })),
+      setPreferences: (prefs) => {
+        set((state) => ({ preferences: { ...state.preferences, ...prefs } }));
+        const { userId, preferences, onboarded } = get();
+        if (userId) queueUpsert("profiles", userId, { ...preferences, onboarded });
+      },
       setWeekOffset: (offset) => set({ weekOffset: offset }),
       setScheduleTab: (tab) => set({ scheduleTab: tab }),
       setAcademicFilter: (filter) => set({ academicFilter: filter }),
@@ -566,13 +409,12 @@ export const useTimelyStore = create<TimelyState>()(
         })),
       setChatMessages: (msgs) => set({ chatMessages: keepRecentChat(msgs) }),
 
-      saveChat: () =>
+      saveChat: () => {
         set((state) => {
           const userMsgs = state.chatMessages.filter((m) => m.user);
           if (userMsgs.length === 0) return state;
           const title = userMsgs[0].text.slice(0, 60);
           if (state.activeSavedChatId) {
-            // Update existing saved chat
             return {
               savedChats: state.savedChats.map((c) =>
                 c.id === state.activeSavedChatId
@@ -597,7 +439,13 @@ export const useTimelyStore = create<TimelyState>()(
             savedChats: [newSaved, ...state.savedChats].slice(0, 50),
             activeSavedChatId: newSaved.id,
           };
-        }),
+        });
+        const state = get();
+        const active = state.savedChats.find(
+          (c) => c.id === state.activeSavedChatId,
+        );
+        if (active) queueUpsert("saved_chats", state.userId, active);
+      },
 
       loadSavedChat: (id) =>
         set((state) => {
@@ -606,34 +454,32 @@ export const useTimelyStore = create<TimelyState>()(
           return { chatMessages: [...chat.messages], activeSavedChatId: id };
         }),
 
-      deleteSavedChat: (id) =>
+      deleteSavedChat: (id) => {
         set((state) => ({
           savedChats: state.savedChats.filter((c) => c.id !== id),
           activeSavedChatId:
             state.activeSavedChatId === id ? null : state.activeSavedChatId,
-        })),
+        }));
+        queueDelete("saved_chats", get().userId, id);
+      },
 
       startNewChat: () =>
-        set((state) => ({
-          chatMessages: [
-            {
-              id: `m-${Date.now()}`,
-              text: `Hey ${state.preferences.profileName?.split(" ")[0] || "Alex"}! I've got your day in view. What should we figure out?`,
-              user: false,
-            },
-          ],
+        set(() => ({
+          chatMessages: [{ id: `m-${Date.now()}`, text: CHAT_GREETING, user: false }],
           activeSavedChatId: null,
         })),
 
-      setAiConfig: (config) =>
-        set((state) => ({ aiConfig: { ...state.aiConfig, ...config } })),
+      setAiConfig: (config) => {
+        set((state) => ({ aiConfig: { ...state.aiConfig, ...config } }));
+        const { userId, aiConfig } = get();
+        if (userId) queueUpsert("ai_config", userId, aiConfig);
+      },
       setAiOnline: (online) => set({ aiOnline: online }),
 
       setImportedClasses: (classes) => set({ importedClasses: classes }),
       setImportSource: (source) => set({ importSource: source }),
       setImportReview: (classes) => set({ importReview: classes }),
       setImportConfidence: (conf) => set({ importConfidence: conf }),
-      setHomeworkReview: (review) => set({ homeworkReview: review }),
       setNoteAiTarget: (note) => set({ noteAiTarget: note }),
 
       addPendingAiAction: (action) =>
@@ -646,7 +492,26 @@ export const useTimelyStore = create<TimelyState>()(
         })),
       clearPendingAiActions: () => set({ pendingAiActions: [] }),
 
-      setUserId: (id) => set({ userId: id }),
+      resetStoreToDefaults: () => {
+        resetPersistenceQueue();
+        clearUserScopedStorage();
+        set(freshState());
+      },
+
+      /**
+       * Apply a remote snapshot. Successfully loaded entities are applied even
+       * when empty (so nothing from a previous account can linger); entities
+       * whose fetch failed are left untouched (so a network error can never
+       * look like "this user has no data").
+       */
+      hydrateFromRemote: (snapshot) => {
+        const { profileLoaded, onboarded } = get();
+        const patch = buildHydrationPatch(snapshot, {
+          profileLoaded,
+          localOnboarded: onboarded,
+        });
+        set(patch as Partial<TimelyState>);
+      },
 
       pullOnlyFromSupabase: async () => {
         const { userId } = get();
@@ -655,45 +520,18 @@ export const useTimelyStore = create<TimelyState>()(
         set({ syncStatus: "syncing" });
         try {
           await get().pullFromSupabase();
-          set({ syncStatus: "synced", lastSyncedAt: Date.now() });
+          const { syncError } = get();
+          set({
+            syncStatus: syncError ? "error" : "synced",
+            lastSyncedAt: Date.now(),
+          });
         } catch (error) {
-          console.error("Supabase pull failed:", error);
-          set({ syncStatus: "error" });
+          console.error("Timely: could not load your workspace", error);
+          set({
+            syncStatus: "error",
+            syncError: "Could not load your workspace. Check your connection.",
+          });
         }
-      },
-
-      syncWithSupabase: async () => {
-        const { userId } = get();
-        if (!userId) return;
-
-        set({ syncStatus: "syncing" });
-        try {
-          await get().pushToSupabase();
-          await get().pullFromSupabase();
-          set({ syncStatus: "synced", lastSyncedAt: Date.now() });
-        } catch (error) {
-          console.error("Supabase sync failed:", error);
-          set({ syncStatus: "error" });
-        }
-      },
-
-      pushToSupabase: async () => {
-        const { userId } = get();
-        if (!userId) return;
-
-        const state = get();
-        const { pushAllEntities } = await import("@/lib/supabase/sync");
-        await pushAllEntities(userId, {
-          tasks: state.tasks,
-          classes: state.classes,
-          subjects: state.subjects,
-          notes: state.notes,
-          files: state.files,
-          savedChats: state.savedChats,
-          notifications: state.notifications,
-          preferences: state.preferences,
-          aiConfig: state.aiConfig,
-        });
       },
 
       pullFromSupabase: async () => {
@@ -701,21 +539,40 @@ export const useTimelyStore = create<TimelyState>()(
         if (!userId) return;
 
         const { fetchAllEntities } = await import("@/lib/supabase/sync");
-        const remoteData = await fetchAllEntities(userId);
+        const snapshot = await fetchAllEntities(userId);
+        get().hydrateFromRemote(snapshot);
+      },
 
-        if (remoteData.tasks?.length) set({ tasks: remoteData.tasks });
-        if (remoteData.classes?.length) set({ classes: remoteData.classes });
-        if (remoteData.subjects?.length) set({ subjects: remoteData.subjects });
-        if (remoteData.notes?.length) set({ notes: remoteData.notes });
-        if (remoteData.files?.length) set({ files: remoteData.files });
-        if (remoteData.saved_chats?.length)
-          set({ savedChats: remoteData.saved_chats });
-        if (remoteData.notifications?.length)
-          set({ notifications: remoteData.notifications });
-        if (remoteData.profiles?.length)
-          set({ preferences: remoteData.profiles[0] });
-        if (remoteData.ai_config?.length)
-          set({ aiConfig: remoteData.ai_config[0] });
+      pushToSupabase: async () => {
+        const { userId } = get();
+        if (!userId) return;
+
+        const state = get();
+        const { pushWorkspace } = await import("@/lib/supabase/sync");
+        const result = await pushWorkspace(userId, {
+          tasks: state.tasks,
+          classes: state.classes,
+          subjects: state.subjects,
+          notes: state.notes,
+          files: state.files,
+          savedChats: state.savedChats,
+          notifications: state.notifications,
+          // `onboarded` travels with the rest of the profile so finishing setup
+          // is persisted before we navigate away, instead of racing the pull on
+          // the next screen. Omitted when the database has no such column.
+          preferences: {
+            ...state.preferences,
+            ...(state.onboardedKnown ? { onboarded: state.onboarded } : {}),
+          },
+          aiConfig: state.aiConfig,
+        });
+
+        if (!result.ok) {
+          set({
+            syncStatus: "error",
+            syncError: `Could not save your ${result.failed.join(", ")}.`,
+          });
+        }
       },
 
       getTasksForSubject: (subject) =>
@@ -727,7 +584,7 @@ export const useTimelyStore = create<TimelyState>()(
     {
       name: "timely-store-v1",
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         // Only persist data, not UI state
         tasks: state.tasks,
@@ -748,36 +605,78 @@ export const useTimelyStore = create<TimelyState>()(
         importReview: state.importReview,
         importConfidence: state.importConfidence,
         userId: state.userId,
+        onboarded: state.onboarded,
       }),
       migrate: (persistedState: any, version: number) => {
+        let state = persistedState;
+
         if (version < 2) {
-          // migrate from Ollama (baseUrl) to Gemini (apiKey)
-          const old = persistedState.aiConfig || {};
-          if (old.baseUrl && !old.apiKey) {
-            return {
-              ...persistedState,
-              preferences: {
-                ...DEFAULT_PREFERENCES,
-                ...persistedState.preferences,
-              },
-              aiConfig: {
-                apiKey: "",
-                model: "gemini-2.0-flash",
-                enabled: false,
-              },
-            };
-          }
-          return {
-            ...persistedState,
+          const old = state.aiConfig || {};
+          state = {
+            ...state,
             preferences: {
               ...DEFAULT_PREFERENCES,
-              ...persistedState.preferences,
+              ...state.preferences,
             },
-            aiConfig: { ...DEFAULT_AI_CONFIG, ...persistedState.aiConfig },
+            // migrate from Ollama (baseUrl) to Gemini (apiKey)
+            aiConfig:
+              old.baseUrl && !old.apiKey
+                ? { apiKey: "", model: "gemini-2.5-flash", enabled: false }
+                : { ...DEFAULT_AI_CONFIG, ...state.aiConfig },
           };
         }
-        return persistedState as TimelyState;
+
+        if (version < 3) {
+          // Earlier builds shipped a seeded demo workspace in the browser. A
+          // returning user must never see it as their own data, so it is purged
+          // and replaced by whatever the server actually has for them.
+          state = { ...state, preferences: { ...DEFAULT_PREFERENCES, ...state.preferences } };
+          if (state.preferences?.profileName === "Alex Vale") {
+            state = { ...state, preferences: { ...state.preferences, profileName: "" } };
+          }
+          if (containsLegacyDemoData(state)) {
+            return {
+              ...state,
+              tasks: [],
+              classes: [],
+              subjects: [],
+              notes: [],
+              files: [],
+              savedChats: [],
+              notifications: [],
+              importedClasses: [],
+              importReview: [],
+              onboarded: false,
+            };
+          }
+        }
+
+        return state as TimelyState;
       },
     },
   ),
 );
+
+// --- Persistence feedback ---------------------------------------------------
+// Keep the UI honest about whether writes actually reached the database.
+setPersistenceErrorHandler((entity, message) => {
+  console.error(`Timely: could not save ${entity}`, message);
+  useTimelyStore.setState({
+    syncStatus: "error",
+    syncError: `Could not save your changes (${entity}). We'll retry automatically.`,
+  });
+});
+
+setPersistenceNotifier(() => {
+  useTimelyStore.setState({
+    syncStatus: "synced",
+    lastSyncedAt: Date.now(),
+    syncError: null,
+  });
+});
+
+// Schema drift is not transient like a failed request, so it gets its own
+// channel: a dropped column stays dropped until the migration is applied.
+setSchemaDriftHandler((message) => {
+  useTimelyStore.setState({ schemaWarning: message });
+});

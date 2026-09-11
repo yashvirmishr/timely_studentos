@@ -2,60 +2,30 @@
 
 import React from "react";
 import type { Task, ClassEvent } from "@/lib/types";
+import {
+  DAY_LABELS,
+  getCompletionRate,
+  getEstimatedStudyHours,
+  getWeekRange,
+  getWorkloadData,
+  weekdayIndex,
+} from "@/lib/analytics";
 
 interface AnalyticsViewProps {
   tasks: Task[];
   classes: ClassEvent[];
 }
 
-function getWeekRange(): { start: Date; end: Date } {
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(now.getDate() - now.getDay());
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
-
-function getCompletedTasksThisWeek(tasks: Task[]): number {
-  return tasks.filter(t => t.completed).length;
-}
-
-function getTotalTasksThisWeek(tasks: Task[]): number {
-  return tasks.length;
-}
-
-function getEstimatedStudyHours(tasks: Task[]): number {
-  return tasks.reduce((acc, t) => acc + (parseInt(t.time, 10) || 0), 0) / 60;
-}
-
-function getWorkloadData(tasks: Task[], classes: ClassEvent[]): number[] {
-  const dayIndexes: Record<string, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
-  const workload = [0, 0, 0, 0, 0, 0, 0];
-  classes.forEach(cls => {
-    const index = dayIndexes[cls.day];
-    if (index !== undefined) workload[index] += 1;
-  });
-  tasks.forEach(task => {
-    const due = task.due.toLowerCase();
-    const index = due === "today" ? new Date().getDay() === 0 ? 6 : new Date().getDay() - 1
-      : due === "tomorrow" ? (new Date().getDay() + 6) % 7
-      : ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].findIndex(day => due.startsWith(day));
-    if (index >= 0) workload[index] += 1;
-  });
-  return workload.some(value => value > 0) ? workload : [1, 1, 1, 1, 1, 0, 0];
-}
-
 export default function AnalyticsView({ tasks, classes }: AnalyticsViewProps) {
-  const completed = getCompletedTasksThisWeek(tasks);
-  const total = getTotalTasksThisWeek(tasks);
-  const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const completed = tasks.filter(task => task.completed).length;
+  const total = tasks.length;
+  const completionRate = getCompletionRate(tasks);
   const focusHours = getEstimatedStudyHours(tasks);
   const workloadData = getWorkloadData(tasks, classes);
-  const maxWorkload = Math.max(...workloadData);
-  const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+  const hasWorkload = workloadData.some(value => value > 0);
+  const maxWorkload = Math.max(1, ...workloadData);
+  const currentDayIndex = weekdayIndex();
+  const hasAnyData = total > 0 || classes.length > 0;
 
   const { start, end } = getWeekRange();
   const weekLabel = `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} — ${end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
@@ -84,6 +54,18 @@ Classes tracked: ${classes.length}`;
           URL.revokeObjectURL(url);
         }}><span className="material-symbols-outlined">download</span>Export report</button>
       </div>
+
+      {!hasAnyData && (
+        <div className="empty-state paper-card" style={{ marginBottom: 22 }}>
+          <span className="material-symbols-outlined">insights</span>
+          <strong>Nothing tracked yet</strong>
+          <p>
+            Analytics fills in as you add classes and complete tasks. These
+            numbers are always yours — never sample data.
+          </p>
+        </div>
+      )}
+
       <div className="analytics-grid">
         <div className="analytics-card large paper-card">
           <div className="section-header compact">
@@ -91,31 +73,47 @@ Classes tracked: ${classes.length}`;
               <span className="section-kicker">Estimated study load</span>
               <h2>{focusHours.toFixed(1)}h <small>tracked</small></h2>
             </div>
-            <span className="trend-badge">Live data</span>
+            <span className="trend-badge">{hasWorkload ? "Live data" : "No data yet"}</span>
           </div>
           <div className="bar-chart">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, i) => (
-              <span key={day} className={i === todayIndex ? "chart-today" : ""} style={{ height: `${(workloadData[i] / maxWorkload) * 100}%` }}>
+            {DAY_LABELS.map((day, i) => (
+              <span key={day} className={i === currentDayIndex ? "chart-today" : ""} style={{ height: hasWorkload ? `${(workloadData[i] / maxWorkload) * 100}%` : "2px" }}>
                 <i>{day}</i>
               </span>
             ))}
           </div>
+          {!hasWorkload && (
+            <p style={{ fontSize: 13, color: "#777871", marginTop: 12 }}>
+              Add classes or tasks with due dates to see your week take shape.
+            </p>
+          )}
         </div>
         <div className="analytics-card paper-card workload-card">
           <span className="section-kicker">Workload pulse</span>
-          <h2>{total > 10 ? "Heavy" : total > 5 ? "Moderate" : "Light"} <span>{total > 10 ? "😰" : total > 5 ? "😐" : "☺"}</span></h2>
-          <p>{total > 10 ? "Consider breaking tasks into smaller chunks." : "You've got breathing room this week."}</p>
-          <div className="pulse-line">
-            {workloadData.map((w, i) => <i key={i} className={i === todayIndex ? "active" : ""} style={{ height: `${(w / maxWorkload) * 100}%` }} />)}
-          </div>
-          <small><span>Low</span><span>Today</span><span>High</span></small>
+          {hasWorkload ? (
+            <>
+              <h2>{total > 10 ? "Heavy" : total > 5 ? "Moderate" : "Light"} <span>{total > 10 ? "😰" : total > 5 ? "😐" : "☺"}</span></h2>
+              <p>{total > 10 ? "Consider breaking tasks into smaller chunks." : "You've got breathing room this week."}</p>
+              <div className="pulse-line">
+                {workloadData.map((w, i) => <i key={i} className={i === currentDayIndex ? "active" : ""} style={{ height: `${(w / maxWorkload) * 100}%` }} />)}
+              </div>
+              <small><span>Low</span><span>Today</span><span>High</span></small>
+            </>
+          ) : (
+            <>
+              <h2>—</h2>
+              <p>No tracked work to measure this week.</p>
+            </>
+          )}
         </div>
         <div className="analytics-card paper-card completion-card">
           <span className="section-kicker">Task rhythm</span>
-          <div className="ring-chart" style={{ background: `conic-gradient(var(--blue) 0 ${completionRate}%, #e4e9e8 ${completionRate}% 100%)` }}><strong>{completionRate}<small>%</small></strong></div>
+          <div className="ring-chart" style={{ background: `conic-gradient(var(--blue) 0 ${completionRate ?? 0}%, #e4e9e8 ${completionRate ?? 0}% 100%)` }}>
+            <strong>{completionRate === null ? "—" : completionRate}<small>{completionRate === null ? "" : "%"}</small></strong>
+          </div>
           <div>
             <h3>Completion rate</h3>
-            <p>{completed} of {total} tracked tasks complete</p>
+            <p>{total === 0 ? "No tasks tracked yet" : `${completed} of ${total} tracked tasks complete`}</p>
           </div>
         </div>
       </div>

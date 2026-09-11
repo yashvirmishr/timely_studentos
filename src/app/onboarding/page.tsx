@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { probeOnboarding } from "@/lib/supabase/sync";
 import { schemaDriftMessage } from "@/lib/supabase/schema";
+import { ONBOARDED_COLUMN } from "@/lib/supabase/hydrate";
 import { useTimelyStore } from "@/lib/store";
 import type { Subject, ClassEvent, Preferences } from "@/lib/types";
 
@@ -195,6 +196,20 @@ export default function OnboardingPage() {
       </div>
 
       <div className="onb-card onb-card-enter">
+        {/* A read failure must be visible, and must never stop setup. */}
+        {(columnMissing || checkError) && (
+          <div className="schedule-note" role="alert">
+            <span className="material-symbols-outlined" style={{ color: "#c0392b" }}>
+              error
+            </span>
+            <span>
+              {columnMissing
+                ? schemaDriftMessage(ONBOARDED_COLUMN)
+                : `We could not check whether you already finished setup (${checkError}). You can carry on — we will try again.`}
+            </span>
+          </div>
+        )}
+
         {/* Step 0: Welcome */}
         {step === 0 && (
           <div className="onb-step onb-welcome">

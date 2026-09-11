@@ -3,7 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { ClassEvent } from "@/lib/types";
-import { TIMETABLE_SEED } from "@/lib/utils";
+import {
+  buildSampleClasses,
+  SAMPLE_IMPORT_SOURCE,
+} from "@/lib/demo/sample-timetable";
 import { extractTimetable } from "@/lib/local-ai";
 
 interface ImportModalProps {
@@ -71,12 +74,14 @@ export default function ImportModal({
 
   const startSampleScan = () => {
     setError(null);
-    const sample = TIMETABLE_SEED.map(c => ({ ...c, id: `sample-${c.id}`, imported: true, checked: true }));
-    setSource("Sample timetable preview");
-    setImportSource("Sample timetable preview");
+    // Deliberate demo path: nothing is imported unless the user confirms, and
+    // every row is labelled so it can never be mistaken for real data.
+    const sample = buildSampleClasses();
+    setSource(SAMPLE_IMPORT_SOURCE);
+    setImportSource(SAMPLE_IMPORT_SOURCE);
     setClasses(sample);
     setImportReview(sample);
-    setImportConfidence(94);
+    setImportConfidence(null);
     setStep("review");
   };
 
@@ -178,11 +183,13 @@ export default function ImportModal({
               <div style={{ display: "flex", gap: 12 }}>
                 <span className="material-symbols-outlined" style={{ color: "#4caf50" }}>auto_awesome</span>
                 <div>
-                  <strong style={{ fontSize: 14, display: "block" }}>Looks like a solid week</strong>
-                  <small style={{ color: "#777871" }}>{classes.length} classes found · 1 free period · {source}</small>
+                  <strong style={{ fontSize: 14, display: "block" }}>Review your week</strong>
+                  <small style={{ color: "#777871" }}>{classes.length} class{classes.length === 1 ? "" : "es"} found{source ? ` · ${source}` : ""}</small>
                 </div>
               </div>
-              <span className="confidence-badge">{importConfidence ? `${importConfidence}% confidence` : "94% confidence"}</span>
+              {importConfidence !== null && (
+                <span className="confidence-badge">{importConfidence}% confidence</span>
+              )}
             </div>
             <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
               <span className="section-kicker">Check the details before they become real</span>

@@ -7,28 +7,28 @@ type AllowedFields = Record<string, readonly string[]>;
 
 /** Allowed fields for each entity type (POST create) */
 const CREATE_FIELDS: AllowedFields = {
-  tasks: ['id', 'title', 'subject', 'due', 'time', 'priority', 'completed', 'custom', 'notes'],
+  tasks: ['id', 'title', 'subject', 'due', 'time', 'priority', 'completed', 'custom', 'notes', 'remind'],
   classes: ['id', 'subject', 'teacher', 'room', 'day', 'start', 'end', 'color', 'checked', 'imported', 'google_calendar_id', 'all_day'],
   subjects: ['id', 'name', 'teacher', 'room', 'symbol', 'color', 'preparedness', 'tasks_due', 'tag', 'urgent'],
   notes: ['id', 'subject', 'ago', 'title', 'preview', 'color', 'pinned', 'has_ai_summary', 'body', 'footer'],
-  files: ['id', 'name', 'type', 'subject', 'updated', 'size'],
+  files: ['id', 'name', 'type', 'subject', 'updated', 'size', 'drive_file_id'],
   saved_chats: ['id', 'title', 'messages', 'created_at', 'updated_at'],
   notifications: ['id', 'tone', 'icon', 'title', 'detail', 'read'],
   ai_config: ['model', 'enabled', 'api_key'],
-  profiles: ['profile_name', 'theme', 'reduce_motion', 'notifications'],
+  profiles: ['profile_name', 'theme', 'reduce_motion', 'notifications', 'onboarded'],
 };
 
 /** Allowed fields for each entity type (PUT update) */
 const UPDATE_FIELDS: AllowedFields = {
-  tasks: ['title', 'subject', 'due', 'time', 'priority', 'completed', 'custom', 'notes'],
+  tasks: ['title', 'subject', 'due', 'time', 'priority', 'completed', 'custom', 'notes', 'remind'],
   classes: ['subject', 'teacher', 'room', 'day', 'start', 'end', 'color', 'checked', 'imported', 'google_calendar_id', 'all_day'],
   subjects: ['name', 'teacher', 'room', 'symbol', 'color', 'preparedness', 'tasks_due', 'tag', 'urgent'],
   notes: ['subject', 'ago', 'title', 'preview', 'color', 'pinned', 'has_ai_summary', 'body', 'footer'],
-  files: ['name', 'type', 'subject', 'updated', 'size'],
+  files: ['name', 'type', 'subject', 'updated', 'size', 'drive_file_id'],
   saved_chats: ['title', 'messages', 'created_at', 'updated_at'],
   notifications: ['tone', 'icon', 'title', 'detail', 'read'],
   ai_config: ['model', 'enabled', 'api_key'],
-  profiles: ['profile_name', 'theme', 'reduce_motion', 'notifications'],
+  profiles: ['profile_name', 'theme', 'reduce_motion', 'notifications', 'onboarded'],
 };
 
 /** Pick only allowed fields from a request body. Strips everything else. */

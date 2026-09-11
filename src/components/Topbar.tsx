@@ -3,6 +3,7 @@
 import React from "react";
 import type { ViewName } from "@/lib/types";
 import { VIEW_NAMES } from "@/lib/utils";
+import { useTimelyStore } from "@/lib/store";
 import type { PomodoroState } from "@/lib/usePomodoro";
 import TopbarPomodoro from "@/components/TopbarPomodoro";
 
@@ -15,6 +16,17 @@ interface TopbarProps {
 }
 
 export default function Topbar({ currentView, onOpenSearch, onToggleNotifications, pomodoro, unreadCount }: TopbarProps) {
+  // Initials come from the signed-in profile, never a hardcoded placeholder.
+  const profileName = useTimelyStore((s) => s.preferences.profileName);
+  const setView = useTimelyStore((s) => s.setView);
+  const initials = profileName
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <header className="topbar">
       <div className="mobile-brand">
@@ -46,7 +58,9 @@ export default function Topbar({ currentView, onOpenSearch, onToggleNotification
           )}
           <i />
         </button>
-        <button className="avatar top-avatar">AV</button>
+        <button className="avatar top-avatar" aria-label="Your profile" onClick={() => setView("profile")}>
+          {initials || "?"}
+        </button>
       </div>
     </header>
   );

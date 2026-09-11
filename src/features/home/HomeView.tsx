@@ -19,20 +19,76 @@ interface HomeViewProps {
   onGenerateBriefing?: () => void;
 }
 
-export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, subjects, onTaskToggle, pomodoro, briefing, briefingLoading, onGenerateBriefing }: HomeViewProps) {
-  const priorityClass = (p: string) => p === "high" ? "high" : p === "medium" ? "medium" : "low";
-  const subjectDot = (s: string) => s.includes("History") ? "dot-history" : s.includes("Calculus") ? "dot-calc" : s.includes("English") ? "dot-english" : "dot-calc";
+const DAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+function toMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map((part) => parseInt(part, 10));
+  if (Number.isNaN(hours)) return Number.NaN;
+  return hours * 60 + (Number.isNaN(minutes) ? 0 : minutes);
+}
+
+/** Dot colour follows the subject's own colour; unknown subjects stay neutral. */
+function subjectDotClass(subjectName: string, subjects: Subject[]): string {
+  const subject = subjects.find((item) => item.name === subjectName);
+  if (!subject) return "dot-neutral";
+  return `dot-${subject.color}`;
+}
+
+export default function HomeView({
+  onNavigate,
+  onOpenQuickAdd,
+  tasks,
+  classes,
+  subjects,
+  onTaskToggle,
+  pomodoro,
+  briefing,
+  briefingLoading,
+  onGenerateBriefing,
+}: HomeViewProps) {
+  const profileName = useTimelyStore((state) => state.preferences.profileName);
+  const aiEnabled = useTimelyStore((state) => state.aiConfig.enabled);
+
+  const priorityClass = (p: string) =>
+    p === "high" ? "high" : p === "medium" ? "medium" : "low";
+
   const today = new Date();
-  const dateLabel = today.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const dueTomorrow = tasks.find(task => !task.completed && task.due.toLowerCase() === "tomorrow");
-  const urgentSubject = subjects.find(subject => subject.urgent) || subjects[0];
-  const todayName = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][today.getDay()];
-  const todayClasses = classes.filter(cls => cls.day === todayName).sort((a, b) => a.start.localeCompare(b.start));
-  const displayedClasses = todayClasses.length ? todayClasses : [];
-  const nextClass = todayClasses[0] || classes.find(c => ["MON", "TUE", "WED", "THU", "FRI"].includes(c.day)) || classes[0];
+  const dateLabel = today.toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  const todayName = DAY_CODES[today.getDay()];
+  const todayClasses = classes
+    .filter((cls) => cls.day === todayName)
+    .sort((a, b) => a.start.localeCompare(b.start));
+
+  const openTasks = tasks.filter((task) => !task.completed);
+  const dueTomorrow = openTasks.find(
+    (task) => task.due.toLowerCase() === "tomorrow",
+  );
+  const trackedExam = subjects.find((subject) => subject.urgent);
+
+  // "Next up" is derived from the clock, never from list position.
+  const nextClassToday = todayClasses.find(
+    (cls) => toMinutes(cls.end) >= nowMinutes,
+  );
+  const nextClass = nextClassToday || classes[0];
+
   const hour = today.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const profileName = useTimelyStore.getState().preferences.profileName || "Alex";
+  const greetingName = profileName.trim().split(" ")[0];
+
+  const classStatus = (cls: ClassEvent): "past" | "current" | "upcoming" => {
+    const start = toMinutes(cls.start);
+    const end = toMinutes(cls.end);
+    if (Number.isNaN(start) || Number.isNaN(end)) return "upcoming";
+    if (end <= nowMinutes) return "past";
+    if (start <= nowMinutes) return "current";
+    return "upcoming";
+  };
 
   return (
     <div>
@@ -40,7 +96,11 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
       <div className="page-heading hero-heading">
         <div>
           <p className="eyebrow"><span className="live-pulse" /> {dateLabel}</p>
-          <h1>{greeting}, {profileName} <span className="wave">{"\u2726"}</span></h1>
+          <h1>
+            {greeting}
+            {greetingName ? `, ${greetingName}` : ""}{" "}
+            <span className="wave">{"\u2726"}</span>
+          </h1>
           <p className="heading-subtitle">Here{"\u2019"}s the shape of your day. Keep it light, keep moving.</p>
         </div>
         <div className="heading-actions">
@@ -53,7 +113,7 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
         </div>
       </div>
 
-      {/* ---- AI Briefing strip ---- */}
+      {/* ---- AI briefing strip ---- */}
       <div className="briefing-strip paper-card">
         <div className="briefing-icon"><span className="material-symbols-outlined">lightbulb</span></div>
         <div className="briefing-copy">
@@ -62,12 +122,36 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
             <p style={{ opacity: 0.6 }}>Generating your briefing…</p>
           ) : briefing ? (
             <p>{briefing}</p>
+          ) : tasks.length === 0 && classes.length === 0 ? (
+            <p>
+              Nothing on your plate yet — add a class or a task and your briefing
+              will summarize it.
+            </p>
+          ) : dueTomorrow ? (
+            <p>
+              <strong>{dueTomorrow.title}</strong> is due tomorrow. A 25-minute focus block today keeps it moving.
+            </p>
           ) : (
             <p>
-              {dueTomorrow ? <><strong>{dueTomorrow.title}</strong> is due tomorrow. A 25-minute focus block today keeps it moving.</> : <>Your tasks are clear for tomorrow. Use a 25-minute focus block to stay ahead.</>}
+              {openTasks.length} open task{openTasks.length === 1 ? "" : "s"}
+              {todayClasses.length > 0
+                ? ` and ${todayClasses.length} class${todayClasses.length === 1 ? "" : "es"} today`
+                : " today"}.
+              {aiEnabled
+                ? " Generate a briefing for the full picture."
+                : " Enable Gemini in Profile for a written briefing."}
             </p>
           )}
         </div>
+        {onGenerateBriefing && aiEnabled && (tasks.length > 0 || classes.length > 0) && (
+          <button
+            className="arrow-button"
+            onClick={onGenerateBriefing}
+            aria-label="Generate briefing"
+          >
+            <span className="material-symbols-outlined">auto_awesome</span>
+          </button>
+        )}
         <button className="arrow-button" onClick={() => onNavigate("assistant")} aria-label="Open briefing">
           <span className="material-symbols-outlined">arrow_forward</span>
         </button>
@@ -88,52 +172,58 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
           </div>
 
           <div className="timeline paper-card">
-            <div className="timeline-now"><span>NOW</span><i /></div>
-
-            {displayedClasses.length > 0 ? (
-              displayedClasses.slice(0, 3).map((cls, index) => (
-                <article key={cls.id} className={`timeline-row ${index === 0 ? "past" : index === 1 ? "current" : ""}`}>
-                  <time>{cls.start}</time>
-                  <div className="timeline-line" />
-                  <div className={`event-card event-${cls.color}`}>
-                    <div className="event-top">
-                      <span className="event-type">{index === 1 ? "UP NEXT" : cls.imported ? "IMPORTED" : "CLASS"} · {cls.room}</span>
-                      {index === 0 ? <span className="event-check"><span className="material-symbols-outlined">check</span></span> : index === 1 ? <span className="event-live">Next up</span> : <span className="event-type">{cls.day}</span>}
-                    </div>
-                    <h3>{cls.subject}</h3>
-                    <p>{cls.teacher} · {cls.room}</p>
-                    <div className="event-footer">
-                      <span>{cls.start} — {cls.end}</span>
-                      <span className="event-avatar">{cls.teacher.split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
-                    </div>
-                  </div>
-                </article>
-              ))
+            {todayClasses.length > 0 ? (
+              <>
+                <div className="timeline-now"><span>NOW</span><i /></div>
+                {todayClasses.map((cls) => {
+                  const status = classStatus(cls);
+                  return (
+                    <article
+                      key={cls.id}
+                      className={`timeline-row ${status === "past" ? "past" : status === "current" ? "current" : ""}`}
+                    >
+                      <time>{cls.start}</time>
+                      <div className="timeline-line" />
+                      <div className={`event-card event-${cls.color}`}>
+                        <div className="event-top">
+                          <span className="event-type">
+                            {status === "current" ? "UP NEXT" : cls.imported ? "IMPORTED" : "CLASS"} · {cls.room}
+                          </span>
+                          {status === "past" ? (
+                            <span className="event-check"><span className="material-symbols-outlined">check</span></span>
+                          ) : status === "current" ? (
+                            <span className="event-live">Happening now</span>
+                          ) : (
+                            <span className="event-type">{cls.day}</span>
+                          )}
+                        </div>
+                        <h3>{cls.subject}</h3>
+                        <p>{cls.teacher} · {cls.room}</p>
+                        <div className="event-footer">
+                          <span>{cls.start} — {cls.end}</span>
+                          <span className="event-avatar">
+                            {cls.teacher.split(" ").map((part) => part[0]).filter(Boolean).join("").slice(0, 2)}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </>
             ) : (
-              <article className="timeline-row">
-                <time>{hour < 12 ? "09:00" : hour < 14 ? "13:00" : "16:00"}</time>
-                <div className="timeline-line" />
-                <div className="free-block" style={{ textAlign: "center", padding: "1.5rem" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: "2rem", opacity: 0.5 }}>event_available</span>
-                  <div style={{ marginTop: "0.5rem" }}>
-                    <strong>No classes today</strong>
-                    <p style={{ marginTop: "0.25rem", opacity: 0.7 }}>Enjoy your free day! Add a class in Schedule if needed.</p>
-                  </div>
-                </div>
-              </article>
-            )}
-
-            <article className="timeline-row">
-              <time>14:00</time>
-              <div className="timeline-line dashed" />              <div className="free-block">
-                <span className="material-symbols-outlined">coffee</span>
-                <div>
-                  <strong>Open space</strong>
-                  <p>{dueTomorrow ? `Good window for ${dueTomorrow.title}` : "Good window for a focused study block"}</p>
-                </div>
-                <button className="text-button" onClick={() => onOpenQuickAdd("task")}>Plan focus</button>
+              <div className="empty-state">
+                <span className="material-symbols-outlined">event_available</span>
+                <strong>No classes today</strong>
+                <p>
+                  {classes.length === 0
+                    ? "Add your first class and it will show up here."
+                    : `Nothing scheduled for ${todayName.toLowerCase()} — enjoy the space.`}
+                </p>
+                <button className="text-button" onClick={() => onOpenQuickAdd("event")}>
+                  Add a class
+                </button>
               </div>
-            </article>
+            )}
           </div>
 
           {/* Tasks section */}
@@ -148,24 +238,35 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
           </div>
 
           <div className="task-list paper-card">
-            {tasks.map(task => (
-              <label key={task.id} className={"task-row" + (task.completed ? " completed-task" : "")}>
-                <input type="checkbox" className="task-checkbox" checked={task.completed} onChange={() => onTaskToggle(task.id)} />
-                <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
-                <span className="task-main">
-                  <strong>{task.title}</strong>
-                  <small>
-                    <span className={"subject-dot " + subjectDot(task.subject)} />{task.subject}
-                    <span className="task-separator"> · </span>
-                    due {task.due}
-                  </small>
-                </span>
-                <span className="task-time">{task.time}</span>
-                <span className={"priority " + priorityClass(task.priority)}>
-                          {task.completed ? "Done" : task.priority === "high" ? "High" : task.priority === "medium" ? "Med" : "Low"}
-                </span>
-              </label>
-            ))}
+            {tasks.length === 0 ? (
+              <div className="empty-state">
+                <span className="material-symbols-outlined">task_alt</span>
+                <strong>No tasks in orbit</strong>
+                <p>Add a small next step to get moving.</p>
+                <button className="text-button" onClick={() => onOpenQuickAdd("task")}>
+                  Create your first task
+                </button>
+              </div>
+            ) : (
+              tasks.map((task) => (
+                <label key={task.id} className={"task-row" + (task.completed ? " completed-task" : "")}>
+                  <input type="checkbox" className="task-checkbox" checked={task.completed} onChange={() => onTaskToggle(task.id)} />
+                  <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
+                  <span className="task-main">
+                    <strong>{task.title}</strong>
+                    <small>
+                      <span className={"subject-dot " + subjectDotClass(task.subject, subjects)} />{task.subject}
+                      <span className="task-separator"> · </span>
+                      due {task.due}
+                    </small>
+                  </span>
+                  <span className="task-time">{task.time}</span>
+                  <span className={"priority " + priorityClass(task.priority)}>
+                    {task.completed ? "Done" : task.priority === "high" ? "High" : task.priority === "medium" ? "Med" : "Low"}
+                  </span>
+                </label>
+              ))
+            )}
           </div>
         </div>
 
@@ -176,28 +277,62 @@ export default function HomeView({ onNavigate, onOpenQuickAdd, tasks, classes, s
               <span className="section-kicker">Keep an eye on</span>
               <h2>Coming up</h2>
             </div>
-            <button className="icon-button small"><span className="material-symbols-outlined">more_horiz</span></button>
+            <button className="icon-button small" onClick={() => onNavigate("academics")} aria-label="Open academics">
+              <span className="material-symbols-outlined">more_horiz</span>
+            </button>
           </div>
           <div className="upcoming-stack">
-            <article className="upcoming-card exam-card paper-card">
-              <div className="tape" />
-              <div className="upcoming-icon red-icon"><span className="material-symbols-outlined">school</span></div>
-              <div className="upcoming-copy">
-                <span className="event-type">EXAM · {urgentSubject?.tag || "TRACKED"}</span>
-                <h3>{urgentSubject ? `${urgentSubject.name} midterm` : "No exam tracked"}</h3>
-                <p>{urgentSubject?.tag || "Add an exam to track preparation"} <span className="tiny-divider" /> {urgentSubject?.preparedness || 0}% prepared</p>
-                <div className="progress-track"><span style={{width: `${urgentSubject?.preparedness || 0}%`}} /></div>
-              </div>
-              <button className="mini-more"><span className="material-symbols-outlined">arrow_forward</span></button>
-            </article>
+            {trackedExam ? (
+              <article className="upcoming-card exam-card paper-card">
+                <div className="tape" />
+                <div className="upcoming-icon red-icon"><span className="material-symbols-outlined">school</span></div>
+                <div className="upcoming-copy">
+                  <span className="event-type">EXAM · {trackedExam.tag || "TRACKED"}</span>
+                  <h3>{trackedExam.name}</h3>
+                  <p>
+                    {trackedExam.teacher || "No teacher set"}
+                    <span className="tiny-divider" /> {trackedExam.preparedness || 0}% prepared
+                  </p>
+                  <div className="progress-track"><span style={{ width: `${trackedExam.preparedness || 0}%` }} /></div>
+                </div>
+                <button className="mini-more" onClick={() => onNavigate("academics")} aria-label="Open academics">
+                  <span className="material-symbols-outlined">arrow_forward</span>
+                </button>
+              </article>
+            ) : (
+              <article className="upcoming-card paper-card">
+                <div className="upcoming-icon red-icon"><span className="material-symbols-outlined">school</span></div>
+                <div className="upcoming-copy">
+                  <span className="event-type">NO EXAM TRACKED</span>
+                  <h3>Nothing marked urgent</h3>
+                  <p>
+                    {subjects.length === 0
+                      ? "Add a subject to start tracking preparation."
+                      : "Flag a subject as needing attention to track it here."}
+                  </p>
+                </div>
+              </article>
+            )}
             <article className="upcoming-card meeting-card paper-card">
               <div className="upcoming-icon blue-icon"><span className="material-symbols-outlined">groups</span></div>
               <div className="upcoming-copy">
-                <span className="event-type">NEXT CLASS · {nextClass?.day || "TBD"} {nextClass?.start || ""}</span>
-                <h3>{nextClass?.subject || "No class tracked"}</h3>
-                <p>{nextClass ? `${nextClass.teacher} · ${nextClass.room}` : "Add a class to see it here"}</p>
+                <span className="event-type">
+                  {nextClassToday
+                    ? `NEXT CLASS · ${nextClassToday.day} ${nextClassToday.start}`
+                    : "NEXT CLASS"}
+                </span>
+                <h3>{nextClassToday ? nextClassToday.subject : nextClass ? nextClass.subject : "No class tracked"}</h3>
+                <p>
+                  {nextClassToday
+                    ? `${nextClassToday.teacher} · ${nextClassToday.room}`
+                    : nextClass
+                      ? `${nextClass.day} ${nextClass.start} · ${nextClass.room}`
+                      : "Add a class to see it here"}
+                </p>
               </div>
-              <button className="mini-more"><span className="material-symbols-outlined">arrow_forward</span></button>
+              <button className="mini-more" onClick={() => onNavigate("schedule")} aria-label="Open schedule">
+                <span className="material-symbols-outlined">arrow_forward</span>
+              </button>
             </article>
           </div>
 

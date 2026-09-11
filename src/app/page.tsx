@@ -14,6 +14,7 @@ import type {
   PendingAiAction,
 } from "@/lib/types";
 import { getAssistantReply } from "@/lib/utils";
+import { deriveDeadlineNotifications } from "@/lib/notifications";
 import {
   detectSmartIntent,
   executeAiAction,
@@ -93,22 +94,17 @@ export default function AppPage() {
       if (!remembered) {
         await signOut();
         router.replace("/login");
-        return;
-      }
-      // New users: redirect to onboarding
-      const onboarded = localStorage.getItem("timely-onboarded") === "1";
-      if (!onboarded) {
-        router.replace("/onboarding");
       }
     });
   }, [router]);
 
   // Sync user data with Supabase on login
-  useSupabaseSync();
+  const { isLoading: authLoading } = useSupabaseSync();
 
   const {
     currentView,
     setView,
+    userId,
     addType,
     setAddType,
     showQuickAdd,
@@ -166,8 +162,6 @@ export default function AppPage() {
     setImportReview,
     importConfidence,
     setImportConfidence,
-    homeworkReview,
-    setHomeworkReview,
     noteAiTarget,
     setNoteAiTarget,
     editingId,
@@ -607,7 +601,12 @@ export default function AppPage() {
           }
         } catch (e: any) {
           hideTyping();
-          const fallback = getAssistantReply(text);
+          const fallback = getAssistantReply(text, {
+            tasks: store.tasks,
+            classes: store.classes,
+            subjects: store.subjects,
+            notes: store.notes,
+          });
           const errorMessage =
             e instanceof Error ? e.message : "Gemini request failed.";
           const aiMsg: ChatMessage = {
@@ -622,7 +621,12 @@ export default function AppPage() {
           id: "a" + Date.now(),
           text:
             "Gemini key missing — paste it in Profile → Gemini, then Test. For now: " +
-            getAssistantReply(text),
+            getAssistantReply(text, {
+              tasks: store.tasks,
+              classes: store.classes,
+              subjects: store.subjects,
+              notes: store.notes,
+            }),
           user: false,
         };
         addChatMessage(aiMsg);
@@ -630,7 +634,12 @@ export default function AppPage() {
         showTyping();
         setTimeout(() => {
           hideTyping();
-          const reply = getAssistantReply(text);
+          const reply = getAssistantReply(text, {
+            tasks: useTimelyStore.getState().tasks,
+            classes: useTimelyStore.getState().classes,
+            subjects: useTimelyStore.getState().subjects,
+            notes: useTimelyStore.getState().notes,
+          });
           const aiMsg: ChatMessage = {
             id: "a" + Date.now(),
             text: reply,
@@ -745,6 +754,50 @@ export default function AppPage() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showQuickAdd, showImport, showSearch, showNotifications]);
 
+  // Deadline notifications: derived from the user's own tasks whenever the
+  // task list or the notification preference changes. Deterministic ids keep
+  // re-runs from duplicating an alert the user already has.
+  useEffect(() => {
+    if (!preferences.notifications || !userId) return;
+    const existing = new Set(
+      useTimelyStore.getState().notifications.map((n) => n.id),
+    );
+    const derived = deriveDeadlineNotifications(tasks);
+    derived.forEach((notification) => {
+      if (!existing.has(notification.id)) {
+        useTimelyStore.getState().addNotification(notification);
+      }
+    });
+  }, [tasks, preferences.notifications, userId]);
+
+  // Onboarding is decided by the account's own profile row, not a browser
+  // flag — otherwise a new device would re-run setup for an existing user and
+  // a leftover flag would let a new account skip it.
+  const onboarded = useTimelyStore((state) => state.onboarded);
+  const profileLoaded = useTimelyStore((state) => state.profileLoaded);
+  const syncError = useTimelyStore((state) => state.syncError);
+  const schemaWarning = useTimelyStore((state) => state.schemaWarning);
+
+  useEffect(() => {
+    // Only redirect once we actually know the account's onboarding state, so a
+    // slow or failed load can never bounce an existing user into setup.
+    if (authLoading || !userId || !profileLoaded) return;
+    if (!onboarded) router.replace("/onboarding");
+  }, [authLoading, userId, profileLoaded, onboarded, router]);
+
+  if (authLoading) {
+    return (
+      <div className="app-shell" data-theme={preferences.theme}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "var(--font-body)" }}>
+          <div style={{ textAlign: "center" }}>
+            <div className="logo-mark" style={{ margin: "0 auto 16px" }} />
+            <p style={{ color: "#777871", fontSize: 14 }}>Loading your workspace…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="app-shell"
@@ -761,6 +814,26 @@ export default function AppPage() {
           unreadCount={notifications.filter((n) => !n.read).length}
         />
         <UpdateChecker />
+        {/* Persistent, not transient: a column the database does not have stays
+            missing until the migration is applied, so it gets its own notice. */}
+        {schemaWarning && (
+          <div className="schedule-note" role="alert">
+            <span className="material-symbols-outlined" style={{ color: "#c0392b" }}>database</span>
+            <span>{schemaWarning}</span>
+          </div>
+        )}
+        {syncError && (
+          <div className="schedule-note" role="alert">
+            <span className="material-symbols-outlined" style={{ color: "#c0392b" }}>error</span>
+            <span>{syncError}</span>
+            <button
+              className="text-button"
+              onClick={() => { void useTimelyStore.getState().pullOnlyFromSupabase(); }}
+            >
+              <span className="material-symbols-outlined">refresh</span>Retry
+            </button>
+          </div>
+        )}
         <div className="page-content">
           {currentView === "home" && (
             <HomeView
@@ -836,8 +909,6 @@ export default function AppPage() {
               onOpenQuickAdd={openQuickAdd}
               noteAiTarget={noteAiTarget}
               setNoteAiTarget={setNoteAiTarget}
-              homeworkReview={homeworkReview}
-              setHomeworkReview={setHomeworkReview}
               subjects={subjects}
             />
           )}
@@ -896,6 +967,10 @@ export default function AppPage() {
           editingId={editingId}
           setEditingId={setEditingId}
           subjects={subjects}
+          onOpenImport={() => {
+            setShowQuickAdd(false);
+            setShowImport(true);
+          }}
         />
       )}
       {showImport && (

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import type { AddType, Task, ClassEvent, Note } from "@/lib/types";
+import type { AddType, Task, ClassEvent, Note, Subject } from "@/lib/types";
 
 interface QuickAddModalProps {
   addType: AddType;
@@ -18,6 +18,8 @@ interface QuickAddModalProps {
   editingId: string | null;
   initialItem: Task | ClassEvent | Note | null;
   setEditingId: (id: string | null) => void;
+  subjects: Subject[];
+  onOpenImport: () => void;
 }
 
 const TYPE_LABELS: Record<AddType, { title: string; placeholder: string }> = {
@@ -27,17 +29,8 @@ const TYPE_LABELS: Record<AddType, { title: string; placeholder: string }> = {
   exam: { title: "Add exam", placeholder: "Which exam is coming up?" },
 };
 
-const SUBJECTS = ["World History", "Advanced Calculus", "English Literature", "Art & Design", "Biology", "Other"];
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI"];
 const COLORS = ["lilac", "blue", "green", "yellow", "red"];
-const SUBJECT_COLORS: Record<string, "lilac" | "blue" | "green" | "yellow" | "red"> = {
-  "World History": "yellow",
-  "Advanced Calculus": "blue",
-  "English Literature": "lilac",
-  "Art & Design": "green",
-  "Biology": "blue",
-  "Other": "red",
-};
 
 export default function QuickAddModal({
   addType,
@@ -53,9 +46,19 @@ export default function QuickAddModal({
   editingId,
   initialItem,
   setEditingId,
+  subjects,
+  onOpenImport,
 }: QuickAddModalProps) {
+  const DEFAULT_SUBJECT = subjects[0]?.name || "Other";
+  const SUBJECT_LIST = subjects.length
+    ? [...subjects.map(s => s.name), "Other"]
+    : ["Other"];
+  const SUBJECT_COLORS = Object.fromEntries(
+    subjects.map(s => [s.name, s.color])
+  ) as Record<string, "lilac" | "blue" | "green" | "yellow" | "red">;
+  SUBJECT_COLORS["Other"] = "red";
   const [title, setTitle] = useState("");
-  const [subject, setSubject] = useState("World History");
+  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [due, setDue] = useState("Today");
   const [estimate, setEstimate] = useState(30);
   const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
@@ -74,7 +77,7 @@ export default function QuickAddModal({
   useEffect(() => {
     const item = initialItem;
     setTitle(item ? ("title" in item ? item.title : item.subject) : "");
-    setSubject(item?.subject || "World History");
+    setSubject(item?.subject || DEFAULT_SUBJECT);
     setDue(item && "due" in item ? item.due : "Today");
     setEstimate(item && "time" in item ? parseInt(item.time, 10) || 30 : 30);
     setPriority(item && "priority" in item ? item.priority : "medium");
@@ -86,7 +89,7 @@ export default function QuickAddModal({
     setColor(item && "color" in item ? item.color : "blue");
     setBody(item && "preview" in item ? item.preview : "");
     setRemind(true);
-  }, [addType, initialItem]);
+  }, [addType, initialItem, DEFAULT_SUBJECT]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +108,7 @@ export default function QuickAddModal({
         priority: priority,
         completed: false,
         custom: true,
-        notes: remind ? "Remind me the day before" : undefined,
+        remind: remind || undefined,
       };
       if (isEditing) onUpdateTask(editingId!, task);
       else onAddTask(task);
@@ -120,7 +123,7 @@ export default function QuickAddModal({
         priority: "high",
         completed: false,
         custom: true,
-        notes: remind ? "Remind me the day before" : undefined,
+        remind: remind || undefined,
       };
       if (isEditing) onUpdateTask(editingId!, task);
       else onAddTask(task);
@@ -178,7 +181,7 @@ export default function QuickAddModal({
               <label style={{ display: 'block' }}>
                 <span style={{ fontSize: 13, color: '#5c5c5c' }}>Subject</span>
                 <select value={subject} onChange={e => setSubject(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, marginTop: 4, background: '#f5f3ef', border: '1px solid #d9d2c6', fontSize: 14 }}>
-                  {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+                  {SUBJECT_LIST.map(s => <option key={s}>{s}</option>)}
                 </select>
               </label>
               <label style={{ display: 'block' }}>
@@ -220,7 +223,7 @@ export default function QuickAddModal({
               <label style={{ display: 'block' }}>
                 <span style={{ fontSize: 13, color: '#5c5c5c' }}>Subject</span>
                 <select value={subject} onChange={e => setSubject(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, marginTop: 4, background: '#f5f3ef', border: '1px solid #d9d2c6', fontSize: 14 }}>
-                  {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+                  {SUBJECT_LIST.map(s => <option key={s}>{s}</option>)}
                 </select>
               </label>
               <label style={{ display: 'block' }}>
@@ -276,7 +279,7 @@ export default function QuickAddModal({
             <label style={{ display: 'block', marginTop: 12 }}>
               <span style={{ fontSize: 13, color: '#5c5c5c' }}>Subject</span>
               <select value={subject} onChange={e => setSubject(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, marginTop: 4, background: '#f5f3ef', border: '1px solid #d9d2c6', fontSize: 14 }}>
-                {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+                {SUBJECT_LIST.map(s => <option key={s}>{s}</option>)}
               </select>
             </label>
             <label style={{ display: 'block', marginTop: 12 }}>
@@ -339,9 +342,9 @@ export default function QuickAddModal({
             {isEditing ? "Save changes" : "Add to Timely"}
           </button>
         </form>
-        <button className="scan-link" onClick={() => { setEditingId(null); onClose(); }} style={{ marginTop: 12 }}>
+        <button className="scan-link" onClick={() => { setEditingId(null); onOpenImport(); }} style={{ marginTop: 12 }}>
           <span className="material-symbols-outlined">document_scanner</span>
-          Or scan a photo with AI
+          Or scan a timetable photo with AI
         </button>
       </div>
     </div>

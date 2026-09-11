@@ -29,9 +29,11 @@ export default function AcademicsView({ onOpenQuickAdd, tasks, subjects, academi
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.completed).length;
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : null;
   const studyMinutes = tasks.reduce((total, task) => total + (parseInt(task.time, 10) || 0), 0);
   const studyHours = studyMinutes >= 60 ? `${(studyMinutes / 60).toFixed(1)}h` : `${studyMinutes}m`;
+  // Exams are tracked through subject flags the user sets themselves.
+  const flaggedSubject = subjects.find(s => s.urgent);
 
   return (
     <div className="academics-view">
@@ -40,19 +42,27 @@ export default function AcademicsView({ onOpenQuickAdd, tasks, subjects, academi
           <p className="eyebrow">The bigger picture</p>
           <h1>Your <span className="red-underline">academics</span></h1>
           <p className="heading-subtitle">
-            {subjects.length} subjects · {tasks.filter(t => !t.completed).length} active tasks · {completionRate}% completion
+            {subjects.length} subject{subjects.length === 1 ? "" : "s"} · {tasks.filter(t => !t.completed).length} active task{tasks.filter(t => !t.completed).length === 1 ? "" : "s"}
+            {completionRate === null ? "" : ` · ${completionRate}% completion`}
           </p>
         </div>
         <div className="heading-actions">
-          <button className="text-button" onClick={() => onOpenQuickAdd("task")}><span className="material-symbols-outlined">document_scanner</span>Scan homework</button>
           <button className="primary-button" onClick={() => onOpenQuickAdd("task")}><span className="material-symbols-outlined">add</span>Add task</button>
         </div>
       </div>
       <div className="academic-summary">
         <div className="summary-stat paper-card">
           <span className="stat-icon blue-icon"><span className="material-symbols-outlined">task_alt</span></span>
-          <div><strong>{completionRate}%</strong><span>tasks completed</span></div>
-          <small className="stat-up">↑ 12% this week</small>
+          <div><strong>{completionRate === null ? "—" : `${completionRate}%`}</strong><span>tasks completed</span></div>
+          <small className="stat-up">
+            {completionRate === null
+              ? "No tasks tracked yet"
+              : completionRate >= 80
+                ? "Great pace"
+                : completionRate >= 50
+                  ? "Steady progress"
+                  : "Keep at it"}
+          </small>
         </div>
         <div className="summary-stat paper-card">
           <span className="stat-icon yellow-icon"><span className="material-symbols-outlined">schedule</span></span>
@@ -61,8 +71,11 @@ export default function AcademicsView({ onOpenQuickAdd, tasks, subjects, academi
         </div>
         <div className="summary-stat paper-card">
           <span className="stat-icon red-icon"><span className="material-symbols-outlined">local_fire_department</span></span>
-          <div><strong>{subjects.find(s => s.urgent)?.tag || "No exam"}</strong><span>{subjects.find(s => s.urgent)?.name || "Add an exam subject"}</span></div>
-          <small className="stat-alert">{subjects.find(s => s.urgent)?.preparedness || 0}% prepared</small>
+          <div>
+            <strong>{flaggedSubject?.tag || (subjects.length === 0 ? "No subjects" : "No exam flagged")}</strong>
+            <span>{flaggedSubject?.name || (subjects.length === 0 ? "Add your first subject" : "Mark a subject as needing attention")}</span>
+          </div>
+          {flaggedSubject && <small className="stat-alert">{flaggedSubject.preparedness}% prepared</small>}
         </div>
       </div>
       <div className="section-header academics-header">
@@ -73,6 +86,19 @@ export default function AcademicsView({ onOpenQuickAdd, tasks, subjects, academi
           <button className={academicFilter === "attention" ? "active" : ""} onClick={() => setAcademicFilter("attention")}>Needs attention</button>
         </div>
       </div>
+      {subjects.length === 0 ? (
+        <div className="empty-state paper-card">
+          <span className="material-symbols-outlined">menu_book</span>
+          <strong>No subjects yet</strong>
+          <p>Add your subjects during setup or from a new task to start tracking them.</p>
+        </div>
+      ) : filteredSubjects.length === 0 ? (
+        <div className="empty-state paper-card">
+          <span className="material-symbols-outlined">filter_list</span>
+          <strong>No subjects match</strong>
+          <p>Try another academic filter.</p>
+        </div>
+      ) : (
       <div className="subject-grid">
         {filteredSubjects.map((s, i) => {
           const taskCount = getTaskCount(s.name, tasks);
@@ -81,7 +107,6 @@ export default function AcademicsView({ onOpenQuickAdd, tasks, subjects, academi
             <article key={s.id} className={`paper-card subject-card subject-${s.color}`}>
               <div className="subject-top">
                 <span className="subject-symbol">{s.symbol}</span>
-                <button className="mini-more"><span className="material-symbols-outlined">more_horiz</span></button>
               </div>
               <h3>{s.name}</h3>
               <p>{s.teacher} · {s.room}</p>
@@ -97,6 +122,7 @@ export default function AcademicsView({ onOpenQuickAdd, tasks, subjects, academi
           );
         })}
       </div>
+      )}
     </div>
   );
 }

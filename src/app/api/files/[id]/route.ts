@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { pickFields } from '@/lib/api-validation';
 
 export async function PUT(
   request: NextRequest,
@@ -14,9 +15,10 @@ export async function PUT(
   }
 
   const body = await request.json();
+  const safeBody = pickFields('files', body, 'update');
   const { data, error } = await supabase
     .from('files')
-    .update({ ...body, updated_at: new Date().toISOString() })
+    .update({ ...safeBody, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', user.id)
     .select()

@@ -5,9 +5,9 @@ import type { Task, AiConfig, Preferences } from "@/lib/types";
 import { checkAiConnection, listAvailableModels } from "@/lib/local-ai";
 import { connectGoogleClassroom, disconnectGoogle, fetchAssignments, getGoogleConfig } from "@/lib/google-classroom";
 import { connectGoogleCalendar, disconnectGoogleCalendar, getGoogleCalendarConfig } from "@/lib/google-calendar";
+import { connectGoogleDrive, disconnectGoogleDrive, getGoogleDriveConfig } from "@/lib/google-drive";
 
-interface ProfileViewProps {
-  aiConfig: AiConfig;
+interface ProfileViewProps {  aiConfig: AiConfig;
   onAiConfigChange: (updates: Partial<AiConfig>) => void;
   aiOnline: boolean;
   onTaskImport?: (tasks: Task[]) => void;
@@ -15,13 +15,6 @@ interface ProfileViewProps {
   preferences: Preferences;
   setPreferences: (prefs: Partial<Preferences>) => void;
 }
-
-const PREFERENCE_ITEMS = [
-  { icon: "notifications", label: "Notifications", desc: "Manage notification settings" },
-  { icon: "palette", label: "Appearance", desc: "Theme, colors, and display" },
-  { icon: "lock", label: "Privacy & data", desc: "Data storage and privacy controls" },
-  { icon: "help", label: "Help center", desc: "Documentation and support" },
-];
 
 export default function ProfileView({
   aiConfig,
@@ -43,6 +36,10 @@ export default function ProfileView({
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [calendarBusy, setCalendarBusy] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [driveClientId, setDriveClientId] = useState("");
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [driveBusy, setDriveBusy] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
 
   // Local AI test state
   const [testing, setTesting] = useState(false);
@@ -76,6 +73,9 @@ export default function ProfileView({
       const calendar = getGoogleCalendarConfig();
       setCalendarClientId(calendar.clientId);
       setCalendarConnected(calendar.connected);
+      const drive = getGoogleDriveConfig();
+      setDriveClientId(drive.clientId);
+      setDriveConnected(drive.connected);
     } catch {}
   }, []);
 
@@ -186,7 +186,7 @@ export default function ProfileView({
           <h2>{preferences.profileName}</h2>
           <p className="profile-subtitle">Student</p>            <button className="text-button" onClick={() => document.getElementById("profileName")?.focus()}>Edit profile <span className="material-symbols-outlined">edit</span></button>
           <div className="profile-divider" />
-          <div className="term-row"><span>Current term</span><strong>{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} <span className="material-symbols-outlined">expand_more</span></strong></div>
+          <div className="term-row"><span>Current term</span><strong>{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</strong></div>
         </div>
 
         {/* Calendars */}
@@ -203,11 +203,7 @@ export default function ProfileView({
             <button className="primary-button" disabled={!calendarClientId.trim() || calendarBusy} onClick={async () => { setCalendarBusy(true); setCalendarError(null); try { await connectGoogleCalendar(calendarClientId); setCalendarConnected(true); onToast?.("Google Calendar connected"); } catch (e: any) { setCalendarError(e?.message || "Calendar connection failed"); } finally { setCalendarBusy(false); } }}>{calendarBusy ? "Connecting..." : "Connect"}</button>
           </div>}
           {calendarError && <small className="status-msg status-error">{calendarError}</small>}
-          <div className="connection-row">
-            <span className="connection-logo outlook">O</span>
-            <div><strong>Outlook</strong><small>Not connected</small></div>
-            <button className="text-button">Connect</button>
-          </div>            <div className="settings-link"><span>Calendar integrations</span><span>{calendarConnected ? "Ready to sync" : "Not connected"}</span></div>
+          <div className="settings-link"><span>Calendar integrations</span><span>{calendarConnected ? "Ready to sync" : "Not connected"}</span></div>
         </div>
 
         {/* Google Classroom */}
@@ -252,6 +248,67 @@ export default function ProfileView({
             Create a project at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>,
             enable the Classroom API, and create an OAuth 2.0 Client ID for a Web application.
             Add <code>http://localhost:3002</code> to Authorized JavaScript origins.
+          </p>
+        </div>
+
+        {/* Google Drive */}
+        <div className="settings-card paper-card">
+          <span className="section-kicker">Google Drive</span>
+          <div style={{display: "flex", alignItems: "center", gap: 8}}>
+            <span className="status-dot" style={{background: dotColor(driveConnected)}} />
+            <span className="status-label">
+              {driveConnected ? "Connected · Files sync to Drive" : "Not connected"}
+            </span>
+          </div>
+          <div style={{marginTop: 8}}>
+            <label className="field-label">Google Cloud Client ID</label>
+            <div className="field-row">
+              <input
+                type="text"
+                className="text-field"
+                value={driveClientId}
+                onChange={e => setDriveClientId(e.target.value)}
+                placeholder="Paste your OAuth 2.0 Client ID"
+                disabled={driveConnected}
+              />
+              {!driveConnected ? (
+                <button
+                  className="primary-button"
+                  disabled={!driveClientId.trim() || driveBusy}
+                  onClick={async () => {
+                    setDriveBusy(true);
+                    setDriveError(null);
+                    try {
+                      await connectGoogleDrive(driveClientId.trim());
+                      setDriveConnected(true);
+                      onToast?.("Google Drive connected");
+                    } catch (e: any) {
+                      setDriveError(e?.message || "Drive connection failed");
+                    } finally {
+                      setDriveBusy(false);
+                    }
+                  }}
+                >
+                  <span className="material-symbols-outlined">login</span> {driveBusy ? "Connecting..." : "Connect Google Drive"}
+                </button>
+              ) : (
+                <button
+                  className="text-button danger"
+                  onClick={() => {
+                    disconnectGoogleDrive();
+                    setDriveConnected(false);
+                    onToast?.("Disconnected from Google Drive");
+                  }}
+                >
+                  <span className="material-symbols-outlined">link_off</span> Disconnect
+                </button>
+              )}
+            </div>
+          </div>
+          {driveError && <small className="status-msg status-error">{driveError}</small>}
+          <p className="hint-text">
+            Enables cloud sync for Files. Uses <code>drive.file</code> scope — only files created by Timely are accessible.
+            Add <code>http://localhost:3002</code> to Authorized JavaScript origins in Google Cloud Console.
           </p>
         </div>
 
@@ -350,20 +407,6 @@ export default function ProfileView({
                 onChange={e => setPreferences({ profileName: e.target.value })}
               />
             </div>
-          </div>
-          <div style={{ marginTop: 16 }}>
-            {PREFERENCE_ITEMS.map((p, i) => (
-              <button key={i} className="settings-link" style={{ justifyContent: "space-between", padding: "8px 0" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span className="material-symbols-outlined">{p.icon}</span>
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{p.label}</div>
-                    <small style={{ color: "#777871" }}>{p.desc}</small>
-                  </div>
-                </span>
-                <span>›</span>
-              </button>
-            ))}
           </div>
         </div>
       </div>

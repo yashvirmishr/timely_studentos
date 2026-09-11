@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { pickFields } from '@/lib/api-validation';
 
 export async function GET() {
   const supabase = await createClient();
@@ -31,9 +32,11 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
+  // Whitelist fields: the client must never set user_id or unknown columns.
+  const safeBody = pickFields('tasks', body, 'create');
   const { data, error } = await supabase
     .from('tasks')
-    .insert({ ...body, user_id: user.id })
+    .insert({ ...safeBody, user_id: user.id })
     .select()
     .single();
 

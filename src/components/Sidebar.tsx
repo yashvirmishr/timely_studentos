@@ -12,12 +12,23 @@ interface SidebarProps {
 
 export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
   const profileName = useTimelyStore((s) => s.preferences.profileName);
+  const syncStatus = useTimelyStore((s) => s.syncStatus);
   const initials = profileName
     .split(" ")
     .map((p: string) => p[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  // Reflected from real sync state — never a hardcoded "all good" badge.
+  const syncLabel =
+    syncStatus === "syncing"
+      ? "Saving changes…"
+      : syncStatus === "error"
+        ? "Sync problem"
+        : "All changes saved";
+  const syncColor =
+    syncStatus === "error" ? "#c53b40" : syncStatus === "syncing" ? "#c5a74d" : "#4caf50";
 
   const NavButton = ({ view, icon, label }: { view: ViewName; icon: string; label: string }) => (
     <button
@@ -49,9 +60,9 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onNavigate("profile"); }}
       >
-        <div className="avatar">{initials}</div>
+        <div className="avatar">{initials || "?"}</div>
         <div className="profile-copy">
-          <strong>{profileName}</strong>
+          <strong>{profileName || "Add your name"}</strong>
           <span>Student · {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
         </div>
         <button className="icon-button small" aria-label="Open profile">
@@ -74,9 +85,11 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
 
       <div className="sidebar-bottom">
         <div className="sync-status">
-          <span className="status-dot"></span>
-          <span>All changes synced</span>
-          <span className="material-symbols-outlined">cloud_done</span>
+          <span className="status-dot" style={{ background: syncColor }} />
+          <span>{syncLabel}</span>
+          <span className="material-symbols-outlined">
+            {syncStatus === "error" ? "cloud_off" : syncStatus === "syncing" ? "cloud_sync" : "cloud_done"}
+          </span>
         </div>
         <NavButton view="profile" icon="settings" label="Settings" />
         <button

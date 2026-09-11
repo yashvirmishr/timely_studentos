@@ -169,6 +169,48 @@ export interface GoogleApiError {
 }
 
 // ============================================================
+// Google Drive API — REST v3
+// ============================================================
+
+/** Raw file object from the Drive API. */
+export interface GDriveRawFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  createdTime?: string;
+  modifiedTime?: string;
+  parents?: string[];
+  webViewLink?: string;
+  permissions?: unknown[];
+}
+
+/** Response from `GET /drive/v3/files`. */
+export interface GDriveListFilesResponse {
+  files?: GDriveRawFile[];
+  nextPageToken?: string;
+}
+
+/** Drive storage quota. */
+export interface GDriveAboutResponse {
+  storageQuota?: {
+    limit?: string;
+    usage?: string;
+    usageInDrive?: string;
+  };
+}
+
+/** Response from uploading a file to Drive. */
+export interface GDriveUploadResponse {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  createdTime?: string;
+  webViewLink?: string;
+}
+
+// ============================================================
 // Gemini (Google AI) API
 // ============================================================
 

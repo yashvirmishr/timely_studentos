@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { AddType, ClassEvent, ScheduleTab, Task, Subject } from "@/lib/types";
 import type { ScheduleSuggestion } from "@/lib/local-ai";
+import { useTimelyStore } from "@/lib/store";
 
 interface ScheduleViewProps {
   classes: ClassEvent[];
@@ -93,6 +94,9 @@ export default function ScheduleView({
 }: ScheduleViewProps) {
   const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
   const isCurrentWeek = weekOffset === 0;
+  // Suggestions are generated from this user's timetable, so the cache is
+  // namespaced by account — one user must never see another's cached tips.
+  const userId = useTimelyStore((state) => state.userId);
 
   // --- AI-powered smart suggestions (carousel + 30-min localStorage cache) ---
   const [suggestions, setSuggestions] = useState<ScheduleSuggestion[]>([]);
@@ -106,7 +110,7 @@ export default function ScheduleView({
   // so the cache auto-invalidates when classes or tasks change significantly
   const dataHash = String(classes.length) + "|" + String(tasks.length) + "|" +
     classes.slice(0, 5).map(c => c.subject + c.day).join(",");
-  const cacheKey = SUGGESTION_CACHE_KEY + ":" + dataHash;
+  const cacheKey = `${SUGGESTION_CACHE_KEY}:${userId || "signed-out"}:${dataHash}`;
 
   const readCachedSuggestions = useCallback((): ScheduleSuggestion[] | null => {
     try {
@@ -201,6 +205,16 @@ export default function ScheduleView({
           </div>
         </div>
         <div className="agenda-view paper-card">
+          {classes.length === 0 && (
+            <div className="empty-state">
+              <span className="material-symbols-outlined">event_busy</span>
+              <strong>No classes here</strong>
+              <p>Add a class or import your timetable to fill this in.</p>
+              <button className="text-button" onClick={() => onOpenQuickAdd("event")}>
+                Add your first class
+              </button>
+            </div>
+          )}
           {agendaDays.map((day) => {
             const dayIndex = DAYS.indexOf(day);
             const dayClasses = classes.filter(c => c.day === day).sort((a, b) => a.start.localeCompare(b.start));
@@ -269,6 +283,20 @@ export default function ScheduleView({
           <button className={(scheduleTab as ScheduleTab) === "agenda" ? "active" : ""} onClick={() => setScheduleTab("agenda")}>Agenda</button>
         </div>
       </div>
+
+      {classes.length === 0 && (
+        <div className="empty-state paper-card" style={{ marginBottom: 18 }}>
+          <span className="material-symbols-outlined">calendar_month</span>
+          <strong>Your week is empty</strong>
+          <p>
+            Add a class manually, import a timetable, or sync Google Calendar —
+            nothing is pre-filled for you.
+          </p>
+          <button className="text-button" onClick={() => onOpenQuickAdd("event")}>
+            Add your first class
+          </button>
+        </div>
+      )}
 
       <div className="week-scroll">
         <div className="week-grid paper-card">

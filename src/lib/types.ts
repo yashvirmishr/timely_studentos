@@ -23,6 +23,8 @@ export interface Task {
   completed: boolean;
   custom?: boolean;
   notes?: string;
+  /** User asked for a reminder the day before the due date. */
+  remind?: boolean;
 }
 
 export interface Subject {
@@ -58,6 +60,8 @@ export interface FileItem {
   subject: string;
   updated: string;
   size: string;
+  /** Google Drive file ID — present when synced to Drive. */
+  driveFileId?: string;
 }
 
 export interface ChatMessage {

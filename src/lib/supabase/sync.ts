@@ -1,149 +1,190 @@
-import { createClient } from './client';
+/**
+ * Read-side sync with Supabase.
+ *
+ * Every query is scoped to the authenticated user id and every row is mapped
+ * into the client shape. A failed fetch is reported as a failure — it must
+ * never be confused with "this user has no data", otherwise a transient
+ * network error would either hide real data or leak another account's cached
+ * data into the UI.
+ */
 
-const supabase = createClient();
+import { createClient } from "./client";
+import {
+  fromRow,
+  fromRows,
+  SYNC_ENTITIES,
+  toRow,
+  type SyncEntity,
+} from "./mappers";
+import { detectColumnDrift } from "./schema";
+import {
+  reportSchemaDrift,
+  upsertIgnoringUnknownColumns,
+} from "./persistence";
 
-type EntityType = 'tasks' | 'classes' | 'subjects' | 'notes' | 'files' | 'saved_chats' | 'notifications' | 'profiles' | 'ai_config';
-
-interface SyncOptions {
-  entity: EntityType;
-  userId: string;
-  localData: any[];
-  remoteData: any[];
-  idField?: string;
+export interface RemoteSnapshot {
+  /** Entity -> client objects. Missing keys mean "the fetch failed". */
+  data: Partial<Record<SyncEntity, Record<string, any>[]>>;
+  /** Entities whose fetch failed; their local data must be preserved. */
+  failed: SyncEntity[];
 }
 
-function getIdField(entity: EntityType): string {
-  const idFields: Record<EntityType, string> = {
-    tasks: 'id',
-    classes: 'id',
-    subjects: 'id',
-    notes: 'id',
-    files: 'id',
-    saved_chats: 'id',
-    notifications: 'id',
-    profiles: 'user_id',
-    ai_config: 'user_id',
-  };
-  return idFields[entity];
-}
+/** Read every user-owned entity for one user. */
+export async function fetchAllEntities(userId: string): Promise<RemoteSnapshot> {
+  const supabase = createClient();
+  const data: RemoteSnapshot["data"] = {};
+  const failed: SyncEntity[] = [];
 
-function arraysEqual(a: any[], b: any[]): boolean {
-  if (a.length !== b.length) return false;
-  const idField = a[0]?.id ? 'id' : 'user_id';
-  const sortedA = [...a].sort((x, y) => (x[idField] || '').localeCompare(y[idField] || ''));
-  const sortedB = [...b].sort((x, y) => (x[idField] || '').localeCompare(y[idField] || ''));
-  return JSON.stringify(sortedA) === JSON.stringify(sortedB);
-}
-
-export async function syncEntity(options: SyncOptions): Promise<any[]> {
-  const { entity, userId, localData, remoteData, idField = 'id' } = options;
-  
-  const localMap = new Map(localData.map(item => [item[idField], item]));
-  const remoteMap = new Map(remoteData.map(item => [item[idField], item]));
-  
-  const merged = new Map<string, any>();
-  
-  for (const [id, localItem] of localMap) {
-    const remoteItem = remoteMap.get(id);
-    if (!remoteItem) {
-      merged.set(id, { ...localItem, _sync: 'push' });
-    } else {
-      const localUpdated = new Date(localItem.updated_at || 0).getTime();
-      const remoteUpdated = new Date(remoteItem.updated_at || 0).getTime();
-      merged.set(id, localUpdated >= remoteUpdated ? { ...localItem, _sync: 'push' } : { ...remoteItem, _sync: 'pull' });
-    }
-  }
-  
-  for (const [id, remoteItem] of remoteMap) {
-    if (!localMap.has(id)) {
-      merged.set(id, { ...remoteItem, _sync: 'pull' });
-    }
-  }
-  
-  const toPush = Array.from(merged.values()).filter(item => item._sync === 'push');
-  const toPull = Array.from(merged.values()).filter(item => item._sync === 'pull');
-  
-  if (toPush.length > 0) {
-    const { error } = await supabase
-      .from(entity)
-      .upsert(toPush.map(item => {
-        const { _sync, ...rest } = item;
-        return { ...rest, user_id: userId };
-      }), { onConflict: 'id' });
-    
-    if (error) {
-      console.error(`Failed to push ${entity}:`, error);
-    }
-  }
-  
-  return toPull.map(item => {
-    const { _sync, ...rest } = item;
-    return rest;
-  });
-}
-
-export async function fetchAllEntities(userId: string) {
-  const entities: EntityType[] = ['tasks', 'classes', 'subjects', 'notes', 'files', 'saved_chats', 'notifications', 'profiles', 'ai_config'];
-  const results: Record<string, any[]> = {};
-  
-  for (const entity of entities) {
-    try {
-      let query = supabase.from(entity).select('*');
-      
-      if (entity === 'profiles' || entity === 'ai_config') {
-        query = query.eq('user_id', userId);
-      } else {
-        query = query.eq('user_id', userId);
-      }
-      
-      const { data, error } = await query;
-      if (!error && data) {
-        results[entity] = data;
-      }
-    } catch (error) {
-      console.error(`Failed to fetch ${entity}:`, error);
-      results[entity] = [];
-    }
-  }
-  
-  return results;
-}
-
-export async function pushAllEntities(userId: string, localState: any) {
-  const entities = [
-    { key: 'tasks', entity: 'tasks' as EntityType },
-    { key: 'classes', entity: 'classes' as EntityType },
-    { key: 'subjects', entity: 'subjects' as EntityType },
-    { key: 'notes', entity: 'notes' as EntityType },
-    { key: 'files', entity: 'files' as EntityType },
-    { key: 'savedChats', entity: 'saved_chats' as EntityType },
-    { key: 'notifications', entity: 'notifications' as EntityType },
-  ];
-  
-  for (const { key, entity } of entities) {
-    const localData = localState[key] || [];
-    if (localData.length > 0) {
-      const { error } = await supabase
+  await Promise.all(
+    SYNC_ENTITIES.map(async (entity) => {
+      const { data: rows, error } = await supabase
         .from(entity)
-        .upsert(localData.map((item: any) => ({ ...item, user_id: userId })), { onConflict: 'id' });
-      
+        .select("*")
+        .eq("user_id", userId);
+
       if (error) {
-        console.error(`Failed to push ${entity}:`, error);
+        console.error(`Timely: failed to load ${entity}`, error.message);
+        failed.push(entity);
+        return;
       }
-    }
+
+      data[entity] = fromRows(entity, rows);
+    }),
+  );
+
+  return { data, failed };
+}
+
+/**
+ * Make sure the singleton rows that everything else assumes exist are present.
+ * Called on every sign-in so a brand new account starts from a valid, empty,
+ * explicitly initialized state (profile + AI config, nothing else).
+ */
+export async function ensureUserRecords(userId: string): Promise<void> {
+  const supabase = createClient();
+
+  const [profileResult, aiConfigResult] = await Promise.all([
+    supabase.from("profiles").upsert(
+      { user_id: userId, updated_at: new Date().toISOString() },
+      { onConflict: "user_id", ignoreDuplicates: true },
+    ),
+    supabase.from("ai_config").upsert(
+      { user_id: userId, updated_at: new Date().toISOString() },
+      { onConflict: "user_id", ignoreDuplicates: true },
+    ),
+  ]);
+
+  if (profileResult.error) {
+    console.error("Timely: failed to initialize profile", profileResult.error.message);
   }
-  
-  if (localState.preferences) {
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({ user_id: userId, ...localState.preferences, updated_at: new Date().toISOString() });
-    if (error) console.error('Failed to push preferences:', error);
-  }
-  
-  if (localState.aiConfig) {
-    const { error } = await supabase
-      .from('ai_config')
-      .upsert({ user_id: userId, ...localState.aiConfig, updated_at: new Date().toISOString() });
-    if (error) console.error('Failed to push ai_config:', error);
+  if (aiConfigResult.error) {
+    console.error("Timely: failed to initialize ai_config", aiConfigResult.error.message);
   }
 }
+
+export interface OnboardingProbe {
+  /** False when the database has no `onboarded` column to answer with. */
+  columnPresent: boolean;
+  onboarded: boolean;
+  /** Set when the check failed for a reason schema drift cannot explain. */
+  error: string | null;
+}
+
+/**
+ * Ask one account whether setup is finished.
+ *
+ * Three outcomes that used to collapse into one: finished, not finished, and
+ * "the database cannot answer". Only the middle case may send a user to the
+ * setup screen — the third must never be read as "not finished", or an account
+ * whose database is missing the column can never get past setup.
+ */
+export async function probeOnboarding(
+  userId: string,
+): Promise<OnboardingProbe> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("onboarded")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    if (detectColumnDrift(error).kind === "missing") {
+      return { columnPresent: false, onboarded: false, error: null };
+    }
+    console.error("Timely: could not read onboarding state", error.message);
+    return { columnPresent: true, onboarded: false, error: error.message };
+  }
+
+  return { columnPresent: true, onboarded: !!data?.onboarded, error: null };
+}
+
+/** Upsert a full local collection for one user (used after onboarding import). */
+export async function pushEntity(
+  entity: SyncEntity,
+  userId: string,
+  items: Record<string, any>[],
+): Promise<{ ok: boolean; error?: string }> {
+  if (items.length === 0) return { ok: true };
+  const { error, dropped } = await upsertIgnoringUnknownColumns(
+    entity,
+    items.map((item) => toRow(entity, item, userId)),
+  );
+
+  if (dropped.length > 0) {
+    // The account is on an older schema. Everything the database can store was
+    // still saved, so this is a warning to surface rather than a failure.
+    console.error(
+      `Timely: ${entity} column(s) not in the database: ${dropped.join(", ")}`,
+    );
+    reportSchemaDrift(dropped);
+  }
+
+  if (error) {
+    console.error(`Timely: failed to push ${entity}`, error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+/** Push a whole local workspace, then read it back to confirm it persisted. */
+export async function pushWorkspace(
+  userId: string,
+  state: Record<string, any>,
+): Promise<{ ok: boolean; failed: SyncEntity[] }> {
+  const failed: SyncEntity[] = [];
+
+  const collections: Array<[SyncEntity, any[]]> = [
+    ["tasks", state.tasks || []],
+    ["classes", state.classes || []],
+    ["subjects", state.subjects || []],
+    ["notes", state.notes || []],
+    ["files", state.files || []],
+    ["saved_chats", state.savedChats || []],
+    ["notifications", state.notifications || []],
+  ];
+
+  for (const [entity, items] of collections) {
+    const result = await pushEntity(entity, userId, items);
+    if (!result.ok) failed.push(entity);
+  }
+
+  if (state.preferences) {
+    const result = await pushEntity("profiles", userId, [
+      { ...state.preferences, user_id: userId },
+    ]);
+    if (!result.ok) failed.push("profiles");
+  }
+
+  if (state.aiConfig) {
+    const result = await pushEntity("ai_config", userId, [
+      { ...state.aiConfig, user_id: userId },
+    ]);
+    if (!result.ok) failed.push("ai_config");
+  }
+
+  return { ok: failed.length === 0, failed };
+}
+
+/** Map a single row for callers that only need one entity. */
+export { fromRow };

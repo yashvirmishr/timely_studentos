@@ -1,6 +1,7 @@
 // Gemini AI service — uses Google Generative Language API directly from the client.
 // No backend required. Key is stored locally in Zustand (persisted to localStorage).
 
+import { useTimelyStore } from "./store";
 import type {
   GeminiRawModel,
   GeminiListModelsResponse,
@@ -23,30 +24,23 @@ export interface ChatParams {
   onToken?: (token: string) => void;
 }
 
+/**
+ * The Zustand store is the single source of truth for AI settings. Reading the
+ * raw localStorage blob here used to let a stale (previous account's) API key
+ * be used after an account switch, so we resolve through the store instead.
+ */
 function getStoreConfig(): AiConfig | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("timely-store-v1");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const state = parsed.state || parsed;
-    if (state.aiConfig) return state.aiConfig as AiConfig;
-  } catch {}
-  return null;
+  return useTimelyStore.getState().aiConfig as AiConfig;
 }
 
 export function getConfig(): AiConfig {
   const stored = getStoreConfig();
-  if (stored) return { apiKey: stored.apiKey || "", model: normalizeModel(stored.model), enabled: !!stored.enabled };
-  // fallback to legacy key
-  try {
-    const legacy = localStorage.getItem("timely_ai_config");
-    if (legacy) {
-      const p = JSON.parse(legacy);
-      return { apiKey: p.apiKey || "", model: normalizeModel(p.model), enabled: !!p.enabled };
-    }
-  } catch {}
-  return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
+  if (!stored) return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
+  return {
+    apiKey: stored.apiKey || "",
+    model: normalizeModel(stored.model),
+    enabled: !!stored.enabled,
+  };
 }
 
 function normalizeModel(model?: string): string {
@@ -65,12 +59,10 @@ function normalizeModel(model?: string): string {
 }
 
 export function saveAiConfig(config: Partial<AiConfig>) {
-  // Zustand is source of truth — this helper keeps legacy support
-  const current = getConfig();
-  const merged = { ...current, ...config };
-  // also write legacy for checkAiConnection callers that read it directly
-  try { localStorage.setItem("timely_ai_config", JSON.stringify(merged)); } catch {}
-  return merged;
+  // Zustand is the source of truth; this keeps the store in sync for callers
+  // that only have a partial config to hand.
+  useTimelyStore.getState().setAiConfig(config);
+  return getConfig();
 }
 
 /** Fetch all available generateContent models for a given API key. */

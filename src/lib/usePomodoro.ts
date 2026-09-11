@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTimelyStore } from "./store";
+import { scopedKey } from "./user-scope";
 
 const WORK_SECONDS = 25 * 60;
 const BREAK_SECONDS = 5 * 60;
-const STORAGE_KEY = "timely_pomodoro";
+/** Storage is namespaced per user id: `timely_pomodoro:<userId>`. */
+const STORAGE_KEY_BASE = "timely_pomodoro";
 
 export interface SessionData {
   today: number;
@@ -32,16 +35,28 @@ export interface PomodoroState {
   skipBreak: () => void;
 }
 
-function loadSessions(): SessionData {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
+export function emptySessions(): SessionData {
   return { today: 0, total: 0, date: "", lastCompletedAt: null };
 }
 
-function saveSessions(data: SessionData) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+function todayKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function loadSessions(storageKey: string): SessionData {
+  if (typeof window === "undefined") return emptySessions();
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) return { ...emptySessions(), ...JSON.parse(raw) };
+  } catch {}
+  return emptySessions();
+}
+
+function saveSessions(storageKey: string, data: SessionData) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(data));
+  } catch {}
 }
 
 const hasNotificationApi = typeof window !== "undefined" && "Notification" in window;
@@ -60,10 +75,13 @@ async function requestPermission(): Promise<boolean> {
 }
 
 export function usePomodoro(): PomodoroState {
+  const userId = useTimelyStore((state) => state.userId);
+  const storageKey = scopedKey(STORAGE_KEY_BASE, userId);
+
   const [mode, setMode] = useState<PomodoroMode>("idle");
   const [secondsLeft, setSecondsLeft] = useState(WORK_SECONDS);
   const [running, setRunning] = useState(false);
-  const [sessions, setSessions] = useState<SessionData>(loadSessions);
+  const [sessions, setSessions] = useState<SessionData>(() => loadSessions(storageKey));
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notifiedRef = useRef(false);
 
@@ -75,18 +93,26 @@ export function usePomodoro(): PomodoroState {
   const secs = secondsLeft % 60;
   const isFinished = secondsLeft === 0 && !running;
 
+  // Reload when the account changes so one user never reads another's counts.
+  useEffect(() => {
+    setSessions(loadSessions(storageKey));
+    setRunning(false);
+    setMode("idle");
+    setSecondsLeft(WORK_SECONDS);
+  }, [storageKey]);
+
   // Daily reset
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayKey();
     setSessions(prev => {
       if (prev.date !== today) {
         const updated = { ...prev, today: 0, date: today };
-        saveSessions(updated);
+        saveSessions(storageKey, updated);
         return updated;
       }
       return prev;
     });
-  }, []);
+  }, [storageKey]);
 
   // Timer tick
   useEffect(() => {
@@ -114,9 +140,8 @@ export function usePomodoro(): PomodoroState {
         );
       }
       setSessions(prev => {
-        const today = new Date().toISOString().slice(0, 10);
-        const updated: SessionData = { today: prev.today + 1, total: prev.total + 1, date: today, lastCompletedAt: Date.now() };
-        saveSessions(updated);
+        const updated: SessionData = { today: prev.today + 1, total: prev.total + 1, date: todayKey(), lastCompletedAt: Date.now() };
+        saveSessions(storageKey, updated);
         return updated;
       });
       setMode("break");
@@ -131,7 +156,7 @@ export function usePomodoro(): PomodoroState {
       setMode("idle");
       setSecondsLeft(WORK_SECONDS);
     }
-  }, [secondsLeft, running, isWork, isBreak, sessions.today]);
+  }, [secondsLeft, running, isWork, isBreak, sessions.today, storageKey]);
 
   const startPause = useCallback(async () => {
     if (isIdle) {

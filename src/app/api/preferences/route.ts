@@ -20,11 +20,14 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // A brand new account legitimately has no profile name yet; return an empty
+  // default rather than inventing a person.
   return NextResponse.json(data || {
-    profile_name: 'Alex Vale',
+    profile_name: '',
     theme: 'paper',
     reduce_motion: false,
     notifications: true,
+    onboarded: false,
   });
 }
 
