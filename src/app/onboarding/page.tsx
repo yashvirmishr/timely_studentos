@@ -38,7 +38,7 @@ interface ClassDraft {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { setPreferences, addSubject, addClass, setOnboarded, pushToSupabase } =
+  const { setPreferences, addSubject, addClass, setOnboarded, pushToSupabase, setUserId } =
     useTimelyStore();
   const [step, setStep] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -67,6 +67,9 @@ export default function OnboardingPage() {
         router.replace("/login");
         return;
       }
+      // Ensure the store knows who the user is so that pushToSupabase and
+      // queueUpsert have a userId to write against during onboarding.
+      setUserId(session.user.id);
       // An account that already finished setup should never see this form
       // again — its source of truth is the profile row, not a browser flag.
       const probe = await probeOnboarding(session.user.id);

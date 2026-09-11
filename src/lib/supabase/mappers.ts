@@ -35,6 +35,9 @@ export const SYNC_ENTITIES: SyncEntity[] = [
 /** Entities that are one-row-per-user rather than a collection. */
 export const SINGLETON_ENTITIES: SyncEntity[] = ["profiles", "ai_config"];
 
+/** The column singleton entities conflict on: one row per user, keyed by it. */
+export const SINGLETON_ID_FIELD = "user_id";
+
 /** camelCase (client) -> snake_case (database column) */
 const CAMEL_TO_COLUMN: Record<SyncEntity, Record<string, string>> = {
   tasks: {},
@@ -78,7 +81,7 @@ const WRITABLE_COLUMNS: Record<SyncEntity, string[]> = {
 };
 
 export function idFieldFor(entity: SyncEntity): string {
-  return SINGLETON_ENTITIES.includes(entity) ? "user_id" : "id";
+  return SINGLETON_ENTITIES.includes(entity) ? SINGLETON_ID_FIELD : "id";
 }
 
 function invert(map: Record<string, string>): Record<string, string> {

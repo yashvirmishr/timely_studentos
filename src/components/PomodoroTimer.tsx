@@ -8,7 +8,7 @@ const BREAK_MINUTES = 5;
 const WORK_SECONDS = WORK_MINUTES * 60;
 const BREAK_SECONDS = BREAK_MINUTES * 60;
 
-export default function PomodoroTimer({ p }: { p: PomodoroState }) {
+export default function PomodoroTimer({ p, onEnterFocusMode }: { p: PomodoroState; onEnterFocusMode?: () => void }) {
   const { mode, secondsLeft, running, sessions, mins, secs, isBreak, isWork, isIdle, isFinished, totalSeconds, startPause, reset, skipBreak } = p;
   const totalMinutes = isBreak ? BREAK_MINUTES : WORK_MINUTES;
   const progress = totalSeconds > 0 ? 1 - secondsLeft / totalSeconds : 0;
@@ -20,22 +20,10 @@ export default function PomodoroTimer({ p }: { p: PomodoroState }) {
   const kickerColor = isBreak ? "#4a9d7c" : "#6f9699";
   const textColor = isBreak ? "#4d7a68" : "#6c8385";
 
-  const scribbleLines = isBreak
-    ? running ? ["stretch", "hydrate", "breathe"] : ["break", "complete!", "ready to go"]
-    : isWork
-    ? running ? ["stay", "focused", "keep going"] : ["pomodoro", "complete!", "take a break"]
-    : sessions.today > 0
-    ? [`${sessions.today} session${sessions.today !== 1 ? "s" : ""}`, "today", "good work"]
-    : ["a little", "progress", "counts"];
-
   const circumference = (2 * Math.PI * 34).toFixed(2);
 
   return (
     <div className="focus-card paper-card" style={{ background: cardBg }}>
-      <div className="focus-scribble">
-        {scribbleLines[0]}<br/>{scribbleLines[1]}<br/>{scribbleLines[2]}
-      </div>
-
       <div className="focus-content">
         <span className="section-kicker" style={{ color: kickerColor }}>
           {isBreak ? (running ? "Break time" : "Break done") : isWork ? (running ? "Focusing" : "Session done") : "Study focus"}
@@ -91,6 +79,11 @@ export default function PomodoroTimer({ p }: { p: PomodoroState }) {
             </span>
             {isBreak && running ? "Pause break" : isBreak && isFinished ? "Start work" : isWork && running ? "Pause" : "Start a session"}
           </button>
+          {(running || (isWork && secondsLeft < totalSeconds)) && onEnterFocusMode && (
+            <button className="focus-enter-btn" onClick={onEnterFocusMode}>
+              <span className="material-symbols-outlined">fullscreen</span>Focus mode
+            </button>
+          )}
           {isBreak && running && (
             <button className="text-button" onClick={skipBreak} style={{ marginLeft: 8 }}>
               <span className="material-symbols-outlined">skip_next</span>Skip break

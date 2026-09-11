@@ -1,10 +1,33 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import type { ViewName, AddType, Task, ClassEvent, Subject } from "@/lib/types";
 import { useTimelyStore } from "@/lib/store";
 import type { PomodoroState } from "@/lib/usePomodoro";
+
+const QUOTES: [string, string][] = [
+  ["Do what you can, with what you have, where you are.", "Theodore Roosevelt"],
+  ["The secret of getting ahead is getting started.", "Mark Twain"],
+  ["It always seems impossible until it's done.", "Nelson Mandela"],
+  ["Education is the most powerful weapon which you can use to change the world.", "Nelson Mandela"],
+  ["The beautiful thing about learning is that nobody can take it away from you.", "B.B. King"],
+  ["Start where you are. Use what you have. Do what you can.", "Arthur Ashe"],
+  ["The only way to do great work is to love what you do.", "Steve Jobs"],
+  ["Don't let yesterday take up too much of today.", "Will Rogers"],
+  ["We are what we repeatedly do. Excellence, then, is not an act, but a habit.", "Aristotle"],
+  ["The expert in anything was once a beginner.", "Helen Hayes"],
+  ["Believe you can and you're halfway there.", "Theodore Roosevelt"],
+  ["You don't have to be great to start, but you have to start to be great.", "Zig Ziglar"],
+  ["The mind is not a vessel to be filled, but a fire to be kindled.", "Plutarch"],
+  ["Discipline is the bridge between goals and accomplishment.", "Jim Rohn"],
+  ["What we know is a drop, what we don't know is an ocean.", "Isaac Newton"],
+  ["The only limit to our realization of tomorrow will be our doubts of today.", "Franklin D. Roosevelt"],
+  ["Quality is not an act, it is a habit.", "Aristotle"],
+  ["Amateurs sit and wait for inspiration, the rest of us just get up and go to work.", "Stephen King"],
+  ["The best time to plant a tree was 20 years ago. The second best time is now.", "Chinese Proverb"],
+  ["Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill"],
+];
 
 interface HomeViewProps {
   onNavigate: (view: ViewName) => void;
@@ -17,6 +40,7 @@ interface HomeViewProps {
   briefing?: string;
   briefingLoading?: boolean;
   onGenerateBriefing?: () => void;
+  onEnterFocusMode?: () => void;
 }
 
 const DAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -45,9 +69,20 @@ export default function HomeView({
   briefing,
   briefingLoading,
   onGenerateBriefing,
+  onEnterFocusMode,
 }: HomeViewProps) {
   const profileName = useTimelyStore((state) => state.preferences.profileName);
   const aiEnabled = useTimelyStore((state) => state.aiConfig.enabled);
+
+  const [quoteIndex, setQuoteIndex] = useState(0);
+
+  useEffect(() => {
+    setQuoteIndex(Math.floor(Math.random() * QUOTES.length));
+    const timer = setInterval(() => {
+      setQuoteIndex(prev => (prev + 1) % QUOTES.length);
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const priorityClass = (p: string) =>
     p === "high" ? "high" : p === "medium" ? "medium" : "low";
@@ -337,13 +372,13 @@ export default function HomeView({
           </div>
 
           {/* Focus card — working Pomodoro timer */}
-          <PomodoroTimer p={pomodoro} />
+          <PomodoroTimer p={pomodoro} onEnterFocusMode={onEnterFocusMode} />
 
           {/* Quote card */}
           <div className="quote-card">
             <span className="quote-mark">{"\u201c"}</span>
-            <p>Do what you can, with what you have, where you are.</p>
-            <small>{"\u2014"} Theodore Roosevelt</small>
+            <p>{QUOTES[quoteIndex][0]}</p>
+            <small>{"\u2014"} {QUOTES[quoteIndex][1]}</small>
           </div>
         </aside>
       </div>

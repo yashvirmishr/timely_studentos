@@ -14,6 +14,7 @@ import {
   getDriveStorageQuota,
 } from "@/lib/google-drive";
 import type { DriveFileInfo } from "@/lib/google-drive";
+import GoogleDriveTutorialModal from "@/components/GoogleDriveTutorialModal";
 
 interface FilesViewProps {
   files: FileItem[];
@@ -62,6 +63,7 @@ export default function FilesView({ files, onAddFile, onDeleteFile, onUpdateFile
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadPercent, setUploadPercent] = useState(0);
   const [driveStorage, setDriveStorage] = useState<{ limit: number; usage: number } | null>(null);
+  const [showDriveTutorial, setShowDriveTutorial] = useState(false);
 
   // Real Drive quota — fetched from the API once connected. If the quota call
   // fails the bar simply stays hidden rather than showing a made-up value.
@@ -295,13 +297,23 @@ export default function FilesView({ files, onAddFile, onDeleteFile, onUpdateFile
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <input
-              className="text-field"
-              value={driveClientId}
-              onChange={e => setDriveClientId(e.target.value)}
-              placeholder="Google OAuth Client ID"
-              style={{ fontSize: 13, padding: "6px 8px" }}
-            />
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                className="text-field"
+                value={driveClientId}
+                onChange={e => setDriveClientId(e.target.value)}
+                placeholder="Google OAuth Client ID"
+                style={{ fontSize: 13, padding: "6px 8px", flex: 1 }}
+              />
+              <button
+                className="text-button"
+                onClick={() => setShowDriveTutorial(true)}
+                title="How do I get a Client ID?"
+                style={{ padding: "6px 8px", fontSize: 12, flexShrink: 0 }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>help</span>
+              </button>
+            </div>
             <button className="primary-button" onClick={handleDriveConnect} disabled={!driveClientId.trim() || driveBusy} style={{ fontSize: 13 }}>
               <span className="material-symbols-outlined">login</span> Connect Google Drive
             </button>
@@ -374,6 +386,7 @@ export default function FilesView({ files, onAddFile, onDeleteFile, onUpdateFile
           </>
         )}
       </div>
+      {showDriveTutorial && <GoogleDriveTutorialModal onClose={() => setShowDriveTutorial(false)} />}
     </div>
   );
 }

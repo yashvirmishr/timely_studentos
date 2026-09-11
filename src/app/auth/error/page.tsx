@@ -1,53 +1,57 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import React from "react";
-import Link from "next/link";
 
-/**
- * Landing page for failed auth callbacks (bad/expired magic link, OAuth
- * error). The callback route redirects here instead of leaving the user on a
- * 404. Offers a way back to login with the error preserved in the URL.
- */
 export default function AuthErrorPage() {
+  const searchParams = useSearchParams();
+  const message = searchParams.get("message") ?? "An error occurred during authentication.";
+
   return (
     <div
       style={{
         minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
+        display: "grid",
+        placeItems: "center",
+        fontFamily: '"DM Sans", sans-serif',
+        background: "#fdfbf6",
+        color: "#243034",
+        padding: "24px",
+        textAlign: "center",
       }}
     >
-      <div
-        className="paper-card"
-        style={{
-          maxWidth: 420,
-          width: "100%",
-          padding: 32,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          textAlign: "center",
-        }}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 40, color: "#c0392b" }}>
-          error
-        </span>
-        <h1 style={{ fontSize: 22, margin: 0, fontFamily: "Kalam, cursive" }}>
-          Sign-in didn&apos;t complete
-        </h1>
-        <p style={{ color: "#777871", fontSize: 14, margin: 0 }}>
-          The sign-in link was invalid or has expired. Magic links only work
-          once — request a fresh one and try again.
-        </p>
-        <Link
-          href="/login"
-          className="primary-button"
-          style={{ justifyContent: "center", textDecoration: "none" }}
+      <div style={{ maxWidth: 360 }}>
+        <span
+          style={{
+            font: "700 32px Kalam, cursive",
+            color: "#c53b40",
+            display: "block",
+            marginBottom: 12,
+          }}
         >
-          <span className="material-symbols-outlined">arrow_back</span> Back to login
-        </Link>
+          Oops
+        </span>
+        <p style={{ fontSize: 14, color: "#6c8385", lineHeight: 1.5, margin: "0 0 24px" }}>
+          {message}
+        </p>
+        <a
+          href="/login"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "10px 20px",
+            background: "#334347",
+            color: "#fff",
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+            transition: "background 0.2s",
+          }}
+        >
+          Back to login
+        </a>
       </div>
     </div>
   );

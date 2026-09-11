@@ -39,6 +39,11 @@ export const EMPTY_PREFERENCES: Preferences = {
   theme: "paper",
   reduceMotion: false,
   profileName: "",
+  educationSystem: "general",
+  schoolYear: "",
+  examSession: "none",
+  dailyStudyGoal: 0,
+  termLabel: "",
 };
 
 export const EMPTY_AI_CONFIG: AiConfig = {
@@ -53,6 +58,11 @@ interface ProfileRow {
   reduceMotion?: boolean;
   notifications?: boolean;
   onboarded?: boolean;
+  educationSystem?: Preferences["educationSystem"];
+  schoolYear?: string;
+  examSession?: Preferences["examSession"];
+  dailyStudyGoal?: number;
+  termLabel?: string;
 }
 
 interface AiConfigRow {
@@ -102,6 +112,11 @@ export function buildHydrationPatch(
           theme: profile.theme ?? EMPTY_PREFERENCES.theme,
           reduceMotion: !!profile.reduceMotion,
           profileName: profile.profileName ?? "",
+          educationSystem: profile.educationSystem ?? "general",
+          schoolYear: profile.schoolYear ?? "",
+          examSession: profile.examSession ?? "none",
+          dailyStudyGoal: profile.dailyStudyGoal ?? 0,
+          termLabel: profile.termLabel ?? "",
         }
       : { ...EMPTY_PREFERENCES };
 

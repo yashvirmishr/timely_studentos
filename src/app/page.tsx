@@ -24,6 +24,7 @@ import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import MobileNav from "@/components/MobileNav";
 import HomeView from "@/features/home/HomeView";
+const FocusMode = dynamic(() => import("@/components/FocusMode"), { ssr: false });
 const ScheduleView = dynamic(() => import("@/features/schedule/ScheduleView"), {
   ssr: false,
 });
@@ -435,6 +436,7 @@ export default function AppPage() {
   const [isAiTyping, setIsAiTyping] = React.useState(false);
   const [briefing, setBriefing] = React.useState<string>("");
   const [briefingLoading, setBriefingLoading] = React.useState(false);
+  const [showFocusMode, setShowFocusMode] = React.useState(false);
 
   const generateBriefing = React.useCallback(async () => {
     if (!aiConfig.enabled || !aiOnline || !aiConfig.apiKey) return;
@@ -847,6 +849,7 @@ export default function AppPage() {
               briefing={briefing}
               briefingLoading={briefingLoading}
               onGenerateBriefing={generateBriefing}
+              onEnterFocusMode={() => setShowFocusMode(true)}
             />
           )}
           {currentView === "schedule" && (
@@ -1003,6 +1006,9 @@ export default function AppPage() {
           onMarkAllRead={handleMarkAllRead}
           onClose={() => setShowNotifications(false)}
         />
+      )}
+      {showFocusMode && (
+        <FocusMode p={pomodoro} onClose={() => setShowFocusMode(false)} />
       )}
     </div>
   );

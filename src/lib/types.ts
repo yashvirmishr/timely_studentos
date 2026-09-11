@@ -90,6 +90,11 @@ export interface Preferences {
   theme: "paper" | "dark" | "light";
   reduceMotion: boolean;
   profileName: string;
+  educationSystem: "ib" | "alevels" | "ap" | "gcse" | "cbse" | "general";
+  schoolYear: string;
+  examSession: "may" | "november" | "january" | "june" | "none";
+  dailyStudyGoal: number;
+  termLabel: string;
 }
 
 export interface NotificationItem {

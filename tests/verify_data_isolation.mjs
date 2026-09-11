@@ -615,6 +615,29 @@ section("9. Store mutations actually reach the database, scoped to the user");
     networkCalls.some((c) => c.url.includes("/rest/v1/notes") && (c.body || "").includes("has_ai_summary")),
   );
 
+  // Regression: singletons (ai_config, profiles) carry no id of their own, so
+  // their writes used to be dropped before ever reaching the network — the
+  // Gemini key looked saved but vanished on the next sign-in pull.
+  networkCalls.length = 0;
+  useTimelyStore.getState().setAiConfig({ apiKey: "TEST-KEY", enabled: true });
+  await flushPersistence();
+  check(
+    "saving the Gemini key reaches the ai_config table",
+    networkCalls.some((c) => c.url.includes("/rest/v1/ai_config") && (c.body || "").includes("TEST-KEY")),
+  );
+  check(
+    "the ai_config write is stamped with the authenticated user",
+    networkCalls.some((c) => (c.body || "").includes('"user_id":"user-a"')),
+  );
+
+  networkCalls.length = 0;
+  useTimelyStore.getState().setPreferences({ profileName: "New Name" });
+  await flushPersistence();
+  check(
+    "preference changes reach the profiles table",
+    networkCalls.some((c) => c.url.includes("/rest/v1/profiles") && (c.body || "").includes("New Name")),
+  );
+
   // Signed out: nothing may be written at all.
   useTimelyStore.getState().resetStoreToDefaults();
   networkCalls.length = 0;

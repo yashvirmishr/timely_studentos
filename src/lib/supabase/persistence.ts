@@ -10,7 +10,7 @@
  */
 
 import { createClient } from "./client";
-import { idFieldFor, toRow, type SyncEntity } from "./mappers";
+import { idFieldFor, SINGLETON_ENTITIES, SINGLETON_ID_FIELD, toRow, type SyncEntity } from "./mappers";
 import { detectColumnDrift, schemaDriftMessage } from "./schema";
 
 interface PendingUpsert {
@@ -137,7 +137,12 @@ export function queueUpsert(
 ) {
   if (!userId) return;
   const idField = idFieldFor(entity);
-  const id = item[idField] ?? item.id;
+  // Singleton entities (profiles, ai_config) are one row per user: the user id
+  // IS the identity, and callers pass plain client objects (aiConfig carries no
+  // user_id/id), so demanding the item carry its own key silently dropped every
+  // one of their writes — API keys and preference changes never reached the
+  // database and the next sign-in pull erased them.
+  const id = SINGLETON_ID_FIELD === idField ? userId : item[idField] ?? item.id;
   if (!id) return;
 
   const row = toRow(entity, item, userId);
