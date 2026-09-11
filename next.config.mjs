@@ -38,16 +38,11 @@ const CSP_DIRECTIVES = [
 
 const nextConfig = {
   images: { unoptimized: true },
-  // Next.js 16.3 + Vercel bug (#96646): `output: 'standalone'` breaks Vercel's
-  // onBuildComplete packaging (ENOENT .next/next-server.js.nft.json). Only
-  // enable standalone for self-hosted/Docker builds, not on Vercel.
-  output: process.env.VERCEL ? undefined : 'standalone',
+  // No 'output: standalone' — Vercel builds Next.js natively; standalone is only
+  // for self-hosted/Docker deployments. No server actions exist, so no
+  // experimental.serverActions tuning either.
+  poweredByHeader: false,
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
   headers: async () => [
     {
       source: '/(.*)',

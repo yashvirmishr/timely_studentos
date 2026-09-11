@@ -47,7 +47,7 @@ export default function FocusMode({
   if (isIdle && !isFinished) return null;
 
   return (
-    <div className="focus-mode-overlay" data-theme="dark">
+    <div className="focus-mode-overlay" data-theme="dark" style={{ willChange: "opacity" }}>
       <button className="focus-mode-close" onClick={onClose} aria-label="Exit focus mode">
         <span className="material-symbols-outlined">close</span>
       </button>

@@ -284,7 +284,7 @@ export default function HomeView({
               </div>
             ) : (
               tasks.map((task) => (
-                <label key={task.id} className={"task-row" + (task.completed ? " completed-task" : "")}>
+                <label key={task.id} className={"task-row" + (task.completed ? " completed-task" : "")} style={{ willChange: "transform, background" }}>
                   <input type="checkbox" className="task-checkbox" checked={task.completed} onChange={() => onTaskToggle(task.id)} />
                   <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
                   <span className="task-main">

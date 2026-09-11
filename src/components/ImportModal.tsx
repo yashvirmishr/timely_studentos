@@ -101,8 +101,8 @@ export default function ImportModal({
   };
 
   return (
-    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal import-modal" role="dialog" aria-modal="true">
+    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ willChange: "opacity" }}>
+      <div className="modal import-modal" role="dialog" aria-modal="true" style={{ willChange: "transform, opacity" }}>
         <div className="modal-header">
           <div>
             <span className="section-kicker">Skip the spreadsheet</span>

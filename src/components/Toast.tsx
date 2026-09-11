@@ -9,7 +9,7 @@ interface ToastProps {
 
 export default function Toast({ message, visible }: ToastProps) {
   return (
-    <div className={`toast ${visible ? "show" : ""}`} role="status" aria-live="polite">
+    <div className={`toast ${visible ? "show" : ""}`} role="status" aria-live="polite" style={{ willChange: "transform, opacity" }}>
       <span className="material-symbols-outlined">check_circle</span>
       <span>{message}</span>
     </div>

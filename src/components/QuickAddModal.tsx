@@ -300,8 +300,8 @@ export default function QuickAddModal({
   };
 
   return (
-    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) { setEditingId(null); onClose(); } }}>
-      <div className="modal quick-add-modal" role="dialog" aria-modal="true" aria-labelledby="qaTitle">
+    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) { setEditingId(null); onClose(); } }} style={{ willChange: "opacity" }}>
+      <div className="modal quick-add-modal" role="dialog" aria-modal="true" aria-labelledby="qaTitle" style={{ willChange: "transform, opacity" }}>
         <div className="modal-header">
           <div>
             <span className="section-kicker">Make it real</span>

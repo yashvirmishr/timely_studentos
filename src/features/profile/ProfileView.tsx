@@ -6,7 +6,7 @@ import { checkAiConnection, listAvailableModels } from "@/lib/local-ai";
 import { connectGoogleClassroom, disconnectGoogle, fetchAssignments, getGoogleConfig } from "@/lib/google-classroom";
 import { connectGoogleCalendar, disconnectGoogleCalendar, getGoogleCalendarConfig } from "@/lib/google-calendar";
 import { connectGoogleDrive, disconnectGoogleDrive, getGoogleDriveConfig } from "@/lib/google-drive";
-import GoogleDriveTutorialModal from "@/components/GoogleDriveTutorialModal";
+import GoogleServiceTutorialModal, { type GoogleServiceType } from "@/components/GoogleDriveTutorialModal";
 
 interface ProfileViewProps {  aiConfig: AiConfig;
   onAiConfigChange: (updates: Partial<AiConfig>) => void;
@@ -41,7 +41,7 @@ export default function ProfileView({
   const [driveConnected, setDriveConnected] = useState(false);
   const [driveBusy, setDriveBusy] = useState(false);
   const [driveError, setDriveError] = useState<string | null>(null);
-  const [showDriveTutorial, setShowDriveTutorial] = useState(false);
+  const [showServiceTutorial, setShowServiceTutorial] = useState<GoogleServiceType | null>(null);
 
   // Local AI test state
   const [testing, setTesting] = useState(false);
@@ -301,7 +301,7 @@ export default function ProfileView({
                 <input className="text-field" value={calendarClientId} onChange={e => setCalendarClientId(e.target.value)} placeholder="Google OAuth Client ID" style={{ flex: 1 }} />
                 <button
                   className="text-button"
-                  onClick={() => setShowDriveTutorial(true)}
+                  onClick={() => setShowServiceTutorial("drive")}
                   title="How do I get a Client ID?"
                   style={{ padding: "6px 8px", fontSize: 12, flexShrink: 0 }}
                 >
@@ -339,7 +339,7 @@ export default function ProfileView({
                 />
                 <button
                   className="text-button"
-                  onClick={() => setShowDriveTutorial(true)}
+                  onClick={() => setShowServiceTutorial("classroom")}
                   title="How do I get a Client ID?"
                   style={{ padding: "6px 8px", fontSize: 12, flexShrink: 0 }}
                 >
@@ -391,7 +391,7 @@ export default function ProfileView({
                 />
                 <button
                   className="text-button"
-                  onClick={() => setShowDriveTutorial(true)}
+                  onClick={() => setShowServiceTutorial("drive")}
                   title="How do I get a Client ID?"
                   style={{ padding: "6px 8px", fontSize: 12, flexShrink: 0 }}
                 >
@@ -504,7 +504,7 @@ export default function ProfileView({
           </p>
         </div>
       </div>
-      {showDriveTutorial && <GoogleDriveTutorialModal type="drive" onClose={() => setShowDriveTutorial(false)} />}
+      {showServiceTutorial && <GoogleServiceTutorialModal type={showServiceTutorial} onClose={() => setShowServiceTutorial(null)} />}
     </div>
   );
 }

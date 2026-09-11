@@ -59,23 +59,7 @@ function AuthErrorContent() {
 
 export default function AuthErrorPage() {
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "grid",
-            placeItems: "center",
-            fontFamily: '"DM Sans", sans-serif',
-            background: "#fdfbf6",
-            color: "#6c8385",
-            fontSize: 14,
-          }}
-        >
-          Loading…
-        </div>
-      }
-    >
+    <Suspense>
       <AuthErrorContent />
     </Suspense>
   );
