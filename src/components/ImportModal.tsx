@@ -3,11 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { ClassEvent } from "@/lib/types";
-import {
-  buildSampleClasses,
-  SAMPLE_IMPORT_SOURCE,
-} from "@/lib/demo/sample-timetable";
-import { extractTimetable, getConfig } from "@/lib/local-ai";
+import { extractTimetable } from "@/lib/local-ai";
 import { useTimelyStore } from "@/lib/store";
 
 interface ImportModalProps {
@@ -82,17 +78,6 @@ export default function ImportModal({
     }
   };
 
-  const startSampleScan = () => {
-    setError(null);
-    const sample = buildSampleClasses();
-    setSource(SAMPLE_IMPORT_SOURCE);
-    setImportSource(SAMPLE_IMPORT_SOURCE);
-    setClasses(sample);
-    setImportReview(sample);
-    setImportConfidence(null);
-    setStep("review");
-  };
-
   const handleConfirm = () => {
     const selected = classes.filter(c => c.checked);
     onImport(selected);
@@ -149,7 +134,7 @@ export default function ImportModal({
                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>info</span>
                 <div>
                   <strong>AI not configured yet</strong>
-                  <span>Go to <b>Profile</b> and add your Gemini API key to import from photos or PDFs. Or use the sample timetable below.</span>
+                  <span>Go to <b>Profile</b> and add your Gemini API key to import from photos or PDFs.</span>
                 </div>
               </div>
             )}
@@ -166,12 +151,6 @@ export default function ImportModal({
                 <span className="material-symbols-outlined">upload</span> Choose file
               </button>
             </label>
-            <div className="import-or">
-              <span /><span>or</span><span />
-            </div>
-            <button className="manual-import-button" onClick={startSampleScan} style={{ width: "100%", padding: 12, borderRadius: 8, background: "#f5f3ef", textAlign: "center" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: "middle" }}>auto_awesome</span> Use a sample timetable to preview the magic
-            </button>
           </div>
         )}
 
