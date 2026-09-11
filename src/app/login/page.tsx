@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmail, signUpWithEmail, signInWithGoogle } from "@/lib/supabase/auth";
+import { signInWithEmail, signUpWithEmail, signInWithGoogle, resetPassword } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot" | "forgot-sent">("login");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
@@ -73,6 +73,21 @@ export default function LoginPage() {
     }
   }
 
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setStatus("loading");
+    setErrorMsg("");
+    const { error } = await resetPassword(email.trim());
+    if (error) {
+      setStatus("error");
+      setErrorMsg(error.message || "Failed to send reset email.");
+    } else {
+      setMode("forgot-sent");
+      setStatus("idle");
+    }
+  }
+
   if (checkingSession) {
     return (
       <div className="login-shell">
@@ -120,94 +135,173 @@ export default function LoginPage() {
         <h1 className="login-title">Timely</h1>
         <p className="login-subtitle">
           Your academic operating system.<br />
-          {mode === "login" ? "Sign in to pick up where you left off." : "Create your account to get started."}
+          {mode === "forgot-sent" ? "Check your inbox for the reset link." :
+           mode === "forgot" ? "Enter your email to reset your password." :
+           mode === "login" ? "Sign in to pick up where you left off." :
+           "Create your account to get started."}
         </p>
 
-        <button type="button" className="login-google-btn" onClick={handleGoogleSignIn}>
-          <svg width="20" height="20" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
-            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
-            <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
-            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
-          </svg>
-          Google
-        </button>
-
-        <div className="login-divider">
-          <div className="login-divider-line" />
-          <span className="login-divider-text">{mode === "login" ? "or sign in with email" : "or create account"}</span>
-          <div className="login-divider-line" />
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <label className="login-label">Email Address</label>
-          <div className="login-input-row">
-            <span className="material-symbols-outlined">mail</span>
-            <input
-              className="login-input"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="student@university.edu"
-              required
-              autoFocus
-            />
-          </div>
-
-          <label className="login-label" style={{ marginTop: 16 }}>Password</label>
-          <div className="login-input-row">
-            <span className="material-symbols-outlined">lock</span>
-            <input
-              className="login-input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
-          </div>
-
-          {status === "error" && (
-            <p className="login-error">{errorMsg}</p>
-          )}
-
-          <div className="login-check-row">
-            <label className="login-check-label">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              Remember me
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            className="login-submit"
-            disabled={status === "loading" || !email.trim() || !password.trim()}
-          >
-            {status === "loading" ? (
-              <>
-                <span className="material-symbols-outlined" style={{ fontSize: 20, animation: "spin 1s linear infinite" }}>progress_activity</span>
-                {mode === "login" ? "Signing in…" : "Creating account…"}
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{mode === "login" ? "login" : "person_add"}</span>
-                {mode === "login" ? "Sign In" : "Sign Up"}
-              </>
-            )}
+        {mode !== "forgot-sent" && (
+          <button type="button" className="login-google-btn" onClick={handleGoogleSignIn}>
+            <svg width="20" height="20" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+              <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+            </svg>
+            Google
           </button>
-        </form>
+        )}
+
+        {mode !== "forgot-sent" && (
+          <div className="login-divider">
+            <div className="login-divider-line" />
+            <span className="login-divider-text">{mode === "forgot" ? "reset via email" : mode === "login" ? "or sign in with email" : "or create account"}</span>
+            <div className="login-divider-line" />
+          </div>
+        )}
+
+        {mode === "forgot-sent" ? (
+          <div className="login-success">
+            <div className="login-success-icon">
+              <span className="material-symbols-outlined" style={{ fontSize: 24, color: "#2e7d32" }}>mark_email_read</span>
+            </div>
+            <h2>Check your inbox</h2>
+            <p>
+              We sent a password reset link to <strong>{email}</strong>.<br />
+              Click the link to set a new password.
+            </p>
+            <button
+              className="text-button"
+              onClick={() => { setMode("login"); setErrorMsg(""); }}
+              style={{ fontSize: 14 }}
+            >
+              Back to sign in
+            </button>
+          </div>
+        ) : mode === "forgot" ? (
+          <form onSubmit={handleForgotPassword}>
+            <label className="login-label">Email Address</label>
+            <div className="login-input-row">
+              <span className="material-symbols-outlined">mail</span>
+              <input
+                className="login-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="student@university.edu"
+                required
+                autoFocus
+              />
+            </div>
+
+            {status === "error" && (
+              <p className="login-error">{errorMsg}</p>
+            )}
+
+            <button
+              type="submit"
+              className="login-submit"
+              disabled={status === "loading" || !email.trim()}
+            >
+              {status === "loading" ? (
+                <>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, animation: "spin 1s linear infinite" }}>progress_activity</span>
+                  Sending reset link…
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>mail</span>
+                  Send Reset Link
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <label className="login-label">Email Address</label>
+            <div className="login-input-row">
+              <span className="material-symbols-outlined">mail</span>
+              <input
+                className="login-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="student@university.edu"
+                required
+                autoFocus
+              />
+            </div>
+
+            <label className="login-label" style={{ marginTop: 16 }}>Password</label>
+            <div className="login-input-row">
+              <span className="material-symbols-outlined">lock</span>
+              <input
+                className="login-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+            </div>
+
+            {mode === "login" && (
+              <button
+                type="button"
+                className="text-button login-forgot-btn"
+                onClick={() => { setMode("forgot"); setErrorMsg(""); }}
+              >
+                Forgot password?
+              </button>
+            )}
+
+            {status === "error" && (
+              <p className="login-error">{errorMsg}</p>
+            )}
+
+            <div className="login-check-row">
+              <label className="login-check-label">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Remember me
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              className="login-submit"
+              disabled={status === "loading" || !email.trim() || !password.trim()}
+            >
+              {status === "loading" ? (
+                <>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, animation: "spin 1s linear infinite" }}>progress_activity</span>
+                  {mode === "login" ? "Signing in…" : "Creating account…"}
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{mode === "login" ? "login" : "person_add"}</span>
+                  {mode === "login" ? "Sign In" : "Sign Up"}
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
         <p className="login-toggle">
-          {mode === "login" ? (
+          {mode === "forgot" ? (
+            <>Remember your password?{" "}
+              <button className="text-button" onClick={() => { setMode("login"); setErrorMsg(""); }}>Sign in</button>
+            </>
+          ) : mode === "login" ? (
             <>Don&apos;t have an account?{" "}
               <button className="text-button" onClick={() => { setMode("signup"); setErrorMsg(""); }}>Sign up</button>
             </>
-          ) : (
+          ) : mode === "forgot-sent" ? null : (
             <>Already have an account?{" "}
               <button className="text-button" onClick={() => { setMode("login"); setErrorMsg(""); }}>Sign in</button>
             </>

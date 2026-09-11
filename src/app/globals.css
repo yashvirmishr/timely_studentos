@@ -1237,7 +1237,7 @@ h1, h2, h3, p { margin-top: 0; }
 .ring-chart small { font: 13px Kalam, cursive; }
 
 /* ---- PROFILE ---- */
-.profile-settings-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 22px; max-width: 850px; margin: 0 auto; }
+.profile-settings-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 22px; max-width: 850px; margin: 0 auto; align-items: start; }
 .settings-card { padding: 24px; }
 .profile-large { text-align: center; grid-row: span 2; }
 .large-avatar { width: 70px; height: 70px; font-size: 24px; margin: 4px auto 15px; }
@@ -2770,6 +2770,19 @@ label > input[type="range"] { display: block; width: 100%; margin-top: 8px; acce
   accent-color: var(--red);
   cursor: pointer;
 }
+
+.login-forgot-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: 400 13px 'Patrick Hand', cursive;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+.login-forgot-btn:hover { color: var(--red); text-decoration: underline; }
 
 .login-submit {
   width: 100%;
