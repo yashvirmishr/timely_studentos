@@ -96,6 +96,7 @@ interface TimelyState {
   deleteNote: (id: string) => void;
 
   addFile: (file: FileItem) => void;
+  updateFile: (id: string, updates: Partial<FileItem>) => void;
   deleteFile: (id: string) => void;
 
   addNotification: (notification: NotificationItem) => void;
@@ -531,6 +532,10 @@ export const useTimelyStore = create<TimelyState>()(
         set((state) => ({ notes: state.notes.filter((n) => n.id !== id) })),
 
       addFile: (file) => set((state) => ({ files: [file, ...state.files] })),
+      updateFile: (id, updates) =>
+        set((state) => ({
+          files: state.files.map((f) => (f.id === id ? { ...f, ...updates } : f)),
+        })),
       deleteFile: (id) =>
         set((state) => ({ files: state.files.filter((f) => f.id !== id) })),
 

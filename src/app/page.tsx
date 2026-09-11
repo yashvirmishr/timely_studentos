@@ -93,6 +93,12 @@ export default function AppPage() {
       if (!remembered) {
         await signOut();
         router.replace("/login");
+        return;
+      }
+      // New users: redirect to onboarding
+      const onboarded = localStorage.getItem("timely-onboarded") === "1";
+      if (!onboarded) {
+        router.replace("/onboarding");
       }
     });
   }, [router]);
@@ -141,6 +147,7 @@ export default function AppPage() {
     deleteNote,
     files,
     addFile,
+    updateFile,
     deleteFile,
     notifications,
     markNotificationRead,
@@ -839,6 +846,9 @@ export default function AppPage() {
               files={files}
               onAddFile={handleAddFile}
               onDeleteFile={handleDeleteFile}
+              onUpdateFile={updateFile}
+              subjects={subjects}
+              onToast={showToast}
             />
           )}
           {currentView === "analytics" && (
