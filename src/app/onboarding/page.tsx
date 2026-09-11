@@ -35,7 +35,8 @@ interface ClassDraft {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { setPreferences, addSubject, addClass } = useTimelyStore();
+  const { setPreferences, addSubject, addClass, setOnboarded, pushToSupabase } =
+    useTimelyStore();
   const [step, setStep] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
 
@@ -54,18 +55,29 @@ export default function OnboardingPage() {
   // Check if already onboarded
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) {
         router.replace("/login");
-      } else {
-        setCheckingSession(false);
+        return;
       }
+      // An account that already finished setup should never see this form
+      // again — its source of truth is the profile row, not a browser flag.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarded")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (profile?.onboarded) {
+        router.replace("/");
+        return;
+      }
+      setCheckingSession(false);
     });
   }, [router]);
 
   if (checkingSession) {
     return (
-      <div className="onb-shell">
+    <div className="onb-shell" data-theme={theme}>
         <span className="material-symbols-outlined" style={{ animation: "spin 1s linear infinite", fontSize: 32, color: "#aaa79e" }}>
           progress_activity
         </span>
@@ -105,10 +117,10 @@ export default function OnboardingPage() {
   }
 
   async function finishOnboarding() {
-    // Save profile
-    setPreferences({ profileName: profileName || "Student", theme });
+    // Save profile. An empty name stays empty — we never invent one.
+    setPreferences({ profileName: profileName.trim(), theme });
 
-    // Save subjects
+    // Save subjects — blank rows are ignored, never invented.
     subjects.forEach((s) => {
       if (!s.name.trim()) return;
       addSubject({
@@ -138,8 +150,11 @@ export default function OnboardingPage() {
       });
     });
 
-    // Mark onboarding complete
-    localStorage.setItem("timely-onboarded", "1");
+    // Mark onboarding complete on the account itself, then write the whole
+    // workspace so setup genuinely initializes the app rather than only
+    // changing local state.
+    setOnboarded(true);
+    await pushToSupabase();
     router.replace("/");
   }
 
@@ -148,6 +163,25 @@ export default function OnboardingPage() {
 
   return (
     <div className="onb-shell">
+      {/* Background doodles */}
+      <svg className="onb-bg-doodle onb-bg-doodle--1" viewBox="0 0 120 120" fill="none" stroke="currentColor" strokeWidth="1.2">
+        <circle cx="60" cy="60" r="50" strokeDasharray="4 6"/>
+        <path d="M40,60 L80,60 M60,40 L60,80"/>
+        <path d="M35,35 Q60,20 85,35 Q100,60 85,85 Q60,100 35,85 Q20,60 35,35Z"/>
+      </svg>
+      <svg className="onb-bg-doodle onb-bg-doodle--2" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="1.2">
+        <rect x="15" y="15" width="70" height="70" rx="4" transform="rotate(12 50 50)"/>
+        <line x1="25" y1="35" x2="75" y2="35"/>
+        <line x1="25" y1="50" x2="65" y2="50"/>
+        <line x1="25" y1="65" x2="55" y2="65"/>
+      </svg>
+      <svg className="onb-bg-doodle onb-bg-doodle--3" viewBox="0 0 60 60" fill="none" stroke="currentColor" strokeWidth="1.2">
+        <path d="M30,5 L35,22 L55,22 L39,33 L44,50 L30,40 L16,50 L21,33 L5,22 L25,22Z"/>
+      </svg>
+      <svg className="onb-bg-doodle onb-bg-doodle--4" viewBox="0 0 80 40" fill="none" stroke="currentColor" strokeWidth="1.2">
+        <path d="M5,35 Q20,5 40,20 Q60,35 75,5" strokeLinecap="round"/>
+      </svg>
+
       {/* Progress bar */}
       <div className="onb-progress-track">
         <div className="onb-progress-fill" style={{ width: `${progress}%` }} />
@@ -156,15 +190,58 @@ export default function OnboardingPage() {
       <div className="onb-card onb-card-enter">
         {/* Step 0: Welcome */}
         {step === 0 && (
-          <div className="onb-step">
-            <div className="onb-step-icon">🎓</div>
-            <h1 className="onb-title">Welcome to Timely</h1>
-            <p className="onb-subtitle">
+          <div className="onb-step onb-welcome">
+            <div className="onb-welcome-badge">
+              <span className="material-symbols-outlined" style={{ fontSize: 28 }}>school</span>
+            </div>
+            <h1 className="onb-welcome-title">Welcome to<br/><span className="onb-welcome-brand">Timely</span></h1>
+            <p className="onb-welcome-sub">
               Your academic operating system.<br />
-              Let&apos;s set things up in under a minute.
+              Tasks, timetable, notes, and AI — all in one place.
             </p>
-            <button className="onb-btn-primary" onClick={() => setStep(1)}>
+
+            <div className="onb-features">
+              <div className="onb-feature">
+                <div className="onb-feature-icon" style={{ background: "#e8f0fe" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#1a73e8" }}>calendar_month</span>
+                </div>
+                <div>
+                  <strong>Timetable</strong>
+                  <span>Plan your week at a glance</span>
+                </div>
+              </div>
+              <div className="onb-feature">
+                <div className="onb-feature-icon" style={{ background: "#fce8e6" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#c5221f" }}>task_alt</span>
+                </div>
+                <div>
+                  <strong>Tasks</strong>
+                  <span>Track assignments and deadlines</span>
+                </div>
+              </div>
+              <div className="onb-feature">
+                <div className="onb-feature-icon" style={{ background: "#e6f4ea" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#137333" }}>auto_awesome</span>
+                </div>
+                <div>
+                  <strong>AI Assistant</strong>
+                  <span>Smart suggestions for your day</span>
+                </div>
+              </div>
+              <div className="onb-feature">
+                <div className="onb-feature-icon" style={{ background: "#fef7e0" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#b05a00" }}>edit_note</span>
+                </div>
+                <div>
+                  <strong>Notes</strong>
+                  <span>Jot down ideas and summaries</span>
+                </div>
+              </div>
+            </div>
+
+            <button className="onb-btn-primary onb-welcome-btn" onClick={() => setStep(1)}>
               Get Started
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_forward</span>
             </button>
           </div>
         )}
@@ -209,7 +286,7 @@ export default function OnboardingPage() {
           <div className="onb-step">
             <div className="onb-step-num">2 of 3</div>
             <h2 className="onb-heading">Add your subjects</h2>
-            <p className="onb-hint">Add at least one. You can always add more later.</p>
+            <p className="onb-hint">Optional — skip it and add subjects whenever you like.</p>
 
             <div className="onb-subject-list">
               {subjects.map((s, i) => (
@@ -273,11 +350,7 @@ export default function OnboardingPage() {
 
             <div className="onb-nav">
               <button className="onb-btn-secondary" onClick={() => setStep(1)}>Back</button>
-              <button
-                className="onb-btn-primary"
-                onClick={() => setStep(3)}
-                disabled={!subjects.some((s) => s.name.trim())}
-              >
+              <button className="onb-btn-primary" onClick={() => setStep(3)}>
                 Next
               </button>
             </div>
@@ -355,9 +428,12 @@ export default function OnboardingPage() {
 
             <div className="onb-nav">
               <button className="onb-btn-secondary" onClick={() => setStep(2)}>Back</button>
-              <button className="onb-btn-primary" onClick={finishOnboarding}>
-                Start using Timely
-              </button>
+              <div className="onb-nav-right">
+                <button className="onb-btn-ghost" onClick={finishOnboarding}>Skip</button>
+                <button className="onb-btn-primary" onClick={finishOnboarding}>
+                  Start using Timely
+                </button>
+              </div>
             </div>
           </div>
         )}
