@@ -1,9 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import React from "react";
+import React, { Suspense } from "react";
 
-export default function AuthErrorPage() {
+function AuthErrorContent() {
   const searchParams = useSearchParams();
   const message = searchParams.get("message") ?? "An error occurred during authentication.";
 
@@ -54,5 +54,29 @@ export default function AuthErrorPage() {
         </a>
       </div>
     </div>
+  );
+}
+
+export default function AuthErrorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            fontFamily: '"DM Sans", sans-serif',
+            background: "#fdfbf6",
+            color: "#6c8385",
+            fontSize: 14,
+          }}
+        >
+          Loading…
+        </div>
+      }
+    >
+      <AuthErrorContent />
+    </Suspense>
   );
 }

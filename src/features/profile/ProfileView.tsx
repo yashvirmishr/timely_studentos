@@ -504,7 +504,7 @@ export default function ProfileView({
           </p>
         </div>
       </div>
-      {showDriveTutorial && <GoogleDriveTutorialModal onClose={() => setShowDriveTutorial(false)} />}
+      {showDriveTutorial && <GoogleDriveTutorialModal type="drive" onClose={() => setShowDriveTutorial(false)} />}
     </div>
   );
 }
