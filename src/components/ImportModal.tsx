@@ -7,7 +7,8 @@ import {
   buildSampleClasses,
   SAMPLE_IMPORT_SOURCE,
 } from "@/lib/demo/sample-timetable";
-import { extractTimetable } from "@/lib/local-ai";
+import { extractTimetable, getConfig } from "@/lib/local-ai";
+import { useTimelyStore } from "@/lib/store";
 
 interface ImportModalProps {
   onClose: () => void;
@@ -37,6 +38,9 @@ export default function ImportModal({
 
   const trapRef = useFocusTrap(true);
 
+  const aiConfig = useTimelyStore((s) => s.aiConfig);
+  const aiReady = aiConfig.enabled && aiConfig.apiKey.trim().length > 0;
+
   useEffect(() => {
     setSource(importSource);
     setClasses(importReview);
@@ -47,6 +51,12 @@ export default function ImportModal({
     setError(null);
     setSource(file.name);
     setImportSource(file.name);
+
+    if (!aiReady) {
+      setError("ai_not_configured");
+      return;
+    }
+
     setStep("scanning");
     try {
       const result = await extractTimetable(file);
@@ -74,8 +84,6 @@ export default function ImportModal({
 
   const startSampleScan = () => {
     setError(null);
-    // Deliberate demo path: nothing is imported unless the user confirms, and
-    // every row is labelled so it can never be mistaken for real data.
     const sample = buildSampleClasses();
     setSource(SAMPLE_IMPORT_SOURCE);
     setImportSource(SAMPLE_IMPORT_SOURCE);
@@ -136,7 +144,17 @@ export default function ImportModal({
 
         {step === "upload" && (
           <div>
-            <label className="upload-dropzone" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: 32, borderRadius: 16, border: "2px dashed #d9d2c6", background: "#fdfbf7", cursor: "pointer", textAlign: "center" }}>
+            {!aiReady && (
+              <div className="import-ai-notice">
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>info</span>
+                <div>
+                  <strong>AI not configured yet</strong>
+                  <span>Go to <b>Profile</b> and add your Gemini API key to import from photos or PDFs. Or use the sample timetable below.</span>
+                </div>
+              </div>
+            )}
+
+            <label className="upload-dropzone" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: 32, borderRadius: 16, border: "2px dashed #d9d2c6", background: "#fdfbf7", cursor: "pointer", textAlign: "center", opacity: aiReady ? 1 : 0.55, pointerEvents: aiReady ? "auto" : "none" }}>
               <span className="upload-illustration">
                 <span className="material-symbols-outlined" style={{ fontSize: 32, color: "#2d5da1" }}>document_scanner</span>
               </span>
@@ -173,7 +191,7 @@ export default function ImportModal({
           </div>
         )}
 
-        {error && (
+        {error && error !== "ai_not_configured" && (
           <div className="status-msg status-error" role="alert" style={{ marginTop: 12 }}>{error}</div>
         )}
 

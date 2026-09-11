@@ -833,7 +833,7 @@ h1, h2, h3, p { margin-top: 0; }
   background: #eff3f2;
   display: grid;
   grid-template-columns: 1fr 108px;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   gap: 0;
   overflow: hidden;
   position: relative;
@@ -899,12 +899,12 @@ h1, h2, h3, p { margin-top: 0; }
   z-index: 1;
 }
 
-/* Pomodoro timer ring — centered top to avoid scribble overlap */
+/* Pomodoro timer ring — positioned in the right column below scribble */
 .pomodoro-ring {
   position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
   width: 72px;
   height: 72px;
   z-index: 1;
@@ -925,6 +925,10 @@ h1, h2, h3, p { margin-top: 0; }
   display: flex;
   align-items: center;
   gap: 4px;
+  grid-column: 1;
+  grid-row: 3;
+  align-self: end;
+  padding-top: 4px;
 }
 
 .quote-card { padding: 24px 14px 5px; text-align: center; color: #8f8c83; position: relative; }
@@ -1335,6 +1339,21 @@ label > input[type="range"] { display: block; width: 100%; margin-top: 8px; acce
 .upload-illustration .material-symbols-outlined { font-size: 25px; }
 .import-or { display: flex; align-items: center; gap: 8px; color: #aaa79e; font: 10px "DM Mono", monospace; margin: 15px 0; }
 .import-or:before, .import-or:after { content: ""; height: 1px; flex: 1; background: #e4ded5; }
+.import-ai-notice {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  font: 400 13px 'Patrick Hand', cursive;
+  color: #5d4037;
+  line-height: 1.4;
+}
+.import-ai-notice .material-symbols-outlined { color: #f9a825; flex-shrink: 0; margin-top: 1px; }
+.import-ai-notice strong { display: block; margin-bottom: 2px; font: 700 14px 'Patrick Hand', cursive; }
+.import-ai-notice span { color: #6d4c41; }
 .manual-import-button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); background: #fff; padding: 10px; border-radius: 5px; font-size: 11px; color: var(--blue-dark); }
 .manual-import-button:hover { background: var(--blue-wash); }
 .scan-animation { height: 220px; background: #eef5f3; border: 1px solid #d2e0dc; border-radius: 7px; display: grid; place-items: center; position: relative; overflow: hidden; }
@@ -1747,7 +1766,7 @@ label > input[type="range"] { display: block; width: 100%; margin-top: 8px; acce
 .app-shell[data-theme="dark"] .message span { color: #6a7472; }
 .app-shell[data-theme="dark"] .user-message p { background: var(--blue-dark); border-color: #3a7090; }
 .app-shell[data-theme="dark"] .chat-input { background: #2a3235; border-color: #3a4043; }
-.app-shell[data-theme="dark"] .chat-input input { color: var(--ink); }
+.app-shell[data-theme="dark"] .chat-input input { color: var(--ink); background: transparent; }
 .app-shell[data-theme="dark"] .send-button { background: var(--red); }
 .app-shell[data-theme="dark"] .attach-button { color: #6a7472; }
 .app-shell[data-theme="dark"] .suggestion-chip { background: #1e2e3a; border-color: #2a4050; color: var(--blue); }
