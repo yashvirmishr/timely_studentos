@@ -63,6 +63,11 @@ interface TimelyState {
   syncStatus: "idle" | "syncing" | "synced" | "error";
   lastSyncedAt: number | null;
   userId: string | null;
+  // UI state (not persisted)
+  showQuickAdd: boolean;
+  showImport: boolean;
+  showSearch: boolean;
+  showNotifications: boolean;
 
   setView: (view: ViewName) => void;
   setAddType: (type: AddType) => void;
@@ -125,101 +130,6 @@ interface TimelyState {
   syncWithSupabase: () => Promise<void>;
   pullFromSupabase: () => Promise<void>;
   pushToSupabase: () => Promise<void>;
-
-  getTasksForSubject: (subject: string) => Task[];
-  getClassesForDay: (day: string) => ClassEvent[];
-  getUnreadNotificationCount: () => number;
-}
-
-interface TimelyState {
-  currentView: ViewName;
-  addType: AddType;
-  tasks: Task[];
-  classes: ClassEvent[];
-  subjects: Subject[];
-  notes: Note[];
-  files: FileItem[];
-  notifications: NotificationItem[];
-  preferences: Preferences;
-  weekOffset: number;
-  scheduleTab: ScheduleTab;
-  academicFilter: AcademicFilter;
-  chatMessages: ChatMessage[];
-  savedChats: SavedChat[];
-  activeSavedChatId: string | null;
-  aiConfig: AiConfig;
-  aiOnline: boolean;
-  importedClasses: ClassEvent[];
-  importSource: string;
-  importReview: ClassEvent[];
-  importConfidence: number | null;
-  /** Placeholder for future homework-scan feature. */
-  homeworkReview: Record<string, unknown> | null;
-  noteAiTarget: Note | null;
-  editingId: string | null;
-  pendingAiActions: PendingAiAction[];
-  // UI state (not persisted)
-  showQuickAdd: boolean;
-  showImport: boolean;
-  showSearch: boolean;
-  showNotifications: boolean;
-
-  setView: (view: ViewName) => void;
-  setAddType: (type: AddType) => void;
-  setEditingId: (id: string | null) => void;
-  setShowQuickAdd: (show: boolean) => void;
-  setShowImport: (show: boolean) => void;
-  setShowSearch: (show: boolean) => void;
-  setShowNotifications: (show: boolean) => void;
-
-  addTask: (task: Task) => void;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  toggleTask: (id: string) => void;
-
-  addClass: (cls: ClassEvent) => void;
-  updateClass: (id: string, updates: Partial<ClassEvent>) => void;
-  deleteClass: (id: string) => void;
-
-  addSubject: (subject: Subject) => void;
-  updateSubject: (id: string, updates: Partial<Subject>) => void;
-  deleteSubject: (id: string) => void;
-
-  addNote: (note: Note) => void;
-  updateNote: (id: string, updates: Partial<Note>) => void;
-  deleteNote: (id: string) => void;
-
-  addFile: (file: FileItem) => void;
-  deleteFile: (id: string) => void;
-
-  addNotification: (notification: NotificationItem) => void;
-  markNotificationRead: (id: string) => void;
-  markAllNotificationsRead: () => void;
-
-  setPreferences: (prefs: Partial<Preferences>) => void;
-  setWeekOffset: (offset: number) => void;
-  setScheduleTab: (tab: ScheduleTab) => void;
-  setAcademicFilter: (filter: AcademicFilter) => void;
-
-  addChatMessage: (msg: ChatMessage) => void;
-  setChatMessages: (msgs: ChatMessage[]) => void;
-  saveChat: () => void;
-  loadSavedChat: (id: string) => void;
-  deleteSavedChat: (id: string) => void;
-  startNewChat: () => void;
-  setAiConfig: (config: Partial<AiConfig>) => void;
-  setAiOnline: (online: boolean) => void;
-
-  setImportedClasses: (classes: ClassEvent[]) => void;
-  setImportSource: (source: string) => void;
-  setImportReview: (classes: ClassEvent[]) => void;
-  setImportConfidence: (conf: number | null) => void;
-  setHomeworkReview: (review: Record<string, unknown> | null) => void;
-  setNoteAiTarget: (note: Note | null) => void;
-
-  addPendingAiAction: (action: PendingAiAction) => void;
-  removePendingAiAction: (id: string) => void;
-  clearPendingAiActions: () => void;
 
   getTasksForSubject: (subject: string) => Task[];
   getClassesForDay: (day: string) => ClassEvent[];

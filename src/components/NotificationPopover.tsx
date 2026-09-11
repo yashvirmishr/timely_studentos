@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { NotificationItem, ViewName } from "@/lib/types";
+import type { NotificationItem } from "@/lib/types";
 
 interface NotificationPopoverProps {
   notifications: NotificationItem[];

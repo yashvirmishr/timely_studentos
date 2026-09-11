@@ -20,12 +20,6 @@ export const TIMETABLE_SEED: ClassEvent[] = [
   { id: "counsel", subject: "University counselling", teacher: "Student Services", room: "A03", day: "THU", start: "16:00", end: "16:45", color: "red", checked: true },
 ];
 
-export function escapeHtml(value: string): string {
-  const div = document.createElement("div");
-  div.textContent = value;
-  return div.innerHTML;
-}
-
 export function getAssistantReply(text: string): string {
   const n = text.toLowerCase();
   if (n.includes("due") || n.includes("deadline"))

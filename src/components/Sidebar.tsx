@@ -3,6 +3,7 @@
 import React from "react";
 import type { ViewName } from "@/lib/types";
 import { useTimelyStore } from "@/lib/store";
+import { signOut } from "@/lib/supabase/auth";
 
 interface SidebarProps {
   currentView: ViewName;
@@ -78,6 +79,18 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
           <span className="material-symbols-outlined">cloud_done</span>
         </div>
         <NavButton view="profile" icon="settings" label="Settings" />
+        <button
+          className="nav-item"
+          onClick={async () => {
+            localStorage.removeItem("timely_remember_me");
+            sessionStorage.removeItem("timely_remember_me");
+            await signOut();
+            window.location.href = "/login";
+          }}
+        >
+          <span className="material-symbols-outlined">logout</span>
+          <span>Log out</span>
+        </button>
         <a
           className="upgrade-card"
           href="https://github.com/timely-student-os/timely"

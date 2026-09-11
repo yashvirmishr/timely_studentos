@@ -61,16 +61,42 @@ const NotificationPopover = dynamic(
   () => import("@/components/NotificationPopover"),
   { ssr: false },
 );
+import { useRouter } from "next/navigation";
 import UpdateChecker from "@/components/UpdateChecker";
 import { usePomodoro } from "@/lib/usePomodoro";
 import { useTimelyStore } from "@/lib/store";
+import { createClient } from "@/lib/supabase/client";
+import { signOut } from "@/lib/supabase/auth";
 import {
   fetchGoogleCalendarEvents,
   getGoogleCalendarConfig,
 } from "@/lib/google-calendar";
 
 export default function AppPage() {
+  const router = useRouter();
   const pomodoro = usePomodoro();
+
+  // Auth gate: redirect to /login if not authenticated
+  // If session exists but no remember-me flag, sign out on fresh browser open.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) {
+        router.replace("/login");
+        return;
+      }
+      // Check remember-me: localStorage = persistent, sessionStorage = session-only.
+      // If neither has the flag, the browser was closed and reopened without "remember me".
+      const remembered =
+        localStorage.getItem("timely_remember_me") === "1" ||
+        sessionStorage.getItem("timely_remember_me") === "1";
+      if (!remembered) {
+        await signOut();
+        router.replace("/login");
+      }
+    });
+  }, [router]);
+
   const {
     currentView,
     setView,
@@ -141,7 +167,7 @@ export default function AppPage() {
     removePendingAiAction,
   } = useTimelyStore();
 
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [toastMessage, setToastMessage] = React.useState("");
   const [googleCalendarBusy, setGoogleCalendarBusy] = React.useState(false);
   const googleCalendarRequest = useRef(0);

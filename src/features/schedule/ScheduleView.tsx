@@ -33,6 +33,10 @@ const COLOR_MAP: Record<string, string> = {
   lilac: "lilac-block", blue: "blue-block", green: "green-block", yellow: "yellow-block", red: "red-block"
 };
 
+// AI suggestion cache — lives outside the component to avoid re-declaration
+const SUGGESTION_CACHE_KEY = "timely-schedule-suggestions";
+const SUGGESTION_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 function getRowIndex(start: string): number {
   if (start < "09:30") return 0;
   if (start < "11:30") return 1;
@@ -90,11 +94,42 @@ export default function ScheduleView({
   const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
   const isCurrentWeek = weekOffset === 0;
 
-  // --- AI-powered smart suggestions (carousel) ---
+  // --- AI-powered smart suggestions (carousel + 30-min localStorage cache) ---
   const [suggestions, setSuggestions] = useState<ScheduleSuggestion[]>([]);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState(false);
   const suggestionFetched = useRef(false);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Data-aware cache key: includes a lightweight hash of schedule data
+  // so the cache auto-invalidates when classes or tasks change significantly
+  const dataHash = String(classes.length) + "|" + String(tasks.length) + "|" +
+    classes.slice(0, 5).map(c => c.subject + c.day).join(",");
+  const cacheKey = SUGGESTION_CACHE_KEY + ":" + dataHash;
+
+  const readCachedSuggestions = useCallback((): ScheduleSuggestion[] | null => {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const { suggestions: cached, timestamp } = JSON.parse(raw);
+      if (Date.now() - timestamp > SUGGESTION_CACHE_TTL_MS) return null;
+      if (!Array.isArray(cached) || cached.length === 0) return null;
+      return cached;
+    } catch {
+      return null;
+    }
+  }, [cacheKey]);
+
+  const writeCachedSuggestions = useCallback((s: ScheduleSuggestion[]) => {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ suggestions: s, timestamp: Date.now() }));
+    } catch {}
+  }, [cacheKey]);
+
+  const clearCachedSuggestions = useCallback(() => {
+    try { localStorage.removeItem(cacheKey); } catch {}
+  }, [cacheKey]);
 
   const fetchSuggestion = useCallback(async () => {
     if (!aiOnline || !aiEnabled || classes.length === 0) return;
@@ -108,20 +143,28 @@ export default function ScheduleView({
       });
       setSuggestions(result);
       setSuggestionIndex(0);
+      writeCachedSuggestions(result);
     } catch {
-      // Silently fall back — suggestions are non-critical
+      setSuggestionError(true);
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = setTimeout(() => setSuggestionError(false), 5000);
     } finally {
       setSuggestionLoading(false);
     }
-  }, [aiOnline, aiEnabled, classes, tasks, subjects]);
+  }, [aiOnline, aiEnabled, classes, tasks, subjects, writeCachedSuggestions]);
 
   useEffect(() => {
     if (suggestionFetched.current) return;
     if (aiOnline && aiEnabled && classes.length > 0) {
       suggestionFetched.current = true;
-      fetchSuggestion();
+      const cached = readCachedSuggestions();
+      if (cached) {
+        setSuggestions(cached);
+      } else {
+        fetchSuggestion();
+      }
     }
-  }, [aiOnline, aiEnabled, classes.length, fetchSuggestion]);
+  }, [aiOnline, aiEnabled, classes.length, fetchSuggestion, readCachedSuggestions]);
 
   if (scheduleTab === "agenda" || scheduleTab === "day") {
     const agendaDays = scheduleTab === "day" ? [DAYS[todayIndex] || "MON"] : DAYS;
@@ -294,6 +337,17 @@ export default function ScheduleView({
           </button>
         </div>
       )}
+      {aiOnline && !suggestionLoading && suggestionError && suggestions.length === 0 && classes.length > 0 && (
+        <div className="schedule-note">
+          <span className="material-symbols-outlined" style={{ color: "#c0392b" }}>error</span>
+          <span>
+            <strong>Could not generate suggestion.</strong> Check your Gemini connection and try again.
+          </span>
+          <button className="icon-button small" onClick={() => { clearCachedSuggestions(); fetchSuggestion(); }} aria-label="Retry suggestion">
+            <span className="material-symbols-outlined">refresh</span>
+          </button>
+        </div>
+      )}
       {aiOnline && !suggestionLoading && suggestions.length > 0 && classes.length > 0 && (
         <div className="schedule-note" style={{ gap: 12 }}>
           <span className="material-symbols-outlined">auto_awesome</span>
@@ -319,7 +373,7 @@ export default function ScheduleView({
           <span style={{ font: '9px "DM Mono", monospace', color: '#aaa79e', flexShrink: 0 }}>
             {suggestionIndex + 1}/{suggestions.length}
           </span>
-          <button className="icon-button small" onClick={fetchSuggestion} disabled={suggestionLoading} aria-label="Refresh suggestions" title="Get new suggestions">
+          <button className="icon-button small" onClick={() => { clearCachedSuggestions(); fetchSuggestion(); }} disabled={suggestionLoading} aria-label="Refresh suggestions" title="Get new suggestions">
             <span className="material-symbols-outlined">refresh</span>
           </button>
           <button className="text-button" onClick={() => onOpenQuickAdd(suggestions[suggestionIndex].actionType === "study_block" || suggestions[suggestionIndex].actionType === "task" ? "task" : "event")}>

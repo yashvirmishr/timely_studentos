@@ -9,9 +9,6 @@ export default function TopbarPomodoro({ p }: { p: PomodoroState }) {
   const dotColor = isBreak ? "#2d8a6e" : "#c53b40";
   const label = isBreak ? "Break" : "Focus";
 
-  // Always show the pomodoro widget — users should always see their progress/session count
-  if (!true) return null;
-
   return (
     <div className="topbar-pomodoro">
       <span className="topbar-pom-dot" style={{ background: dotColor }} />

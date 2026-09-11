@@ -314,10 +314,11 @@ export async function generateScheduleSuggestions(params: {
     const fenced = result.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] || result;
     const parsed = JSON.parse(fenced.trim());
     const items: ScheduleSuggestion[] = Array.isArray(parsed.suggestions) ? parsed.suggestions : [parsed];
+    const VALID_ACTION_TYPES = ["task", "event", "study_block"] as const;
     return items.slice(0, 3).map((s: any) => ({
       text: s.text || "",
       actionLabel: s.actionLabel,
-      actionType: s.actionType,
+      actionType: VALID_ACTION_TYPES.includes(s.actionType) ? s.actionType : "event",
     })).filter((s: ScheduleSuggestion) => !!s.text);
   } catch {
     return [{ text: result.slice(0, 140) }];
@@ -462,13 +463,6 @@ Rules for actions:
     ACTION_FORMAT,
   ];
   return lines.join("\n");
-}
-
-export function buildMessages(userText: string, context?: TimelyContext): { role: "system" | "user" | "assistant"; content: string }[] {
-  return [
-    { role: "system", content: buildContextPrompt(context) },
-    { role: "user", content: userText },
-  ];
 }
 
 export function buildMessagesWithHistory(history: { role: "system" | "user" | "assistant"; content: string }[], userText: string, context?: TimelyContext): { role: "system" | "user" | "assistant"; content: string }[] {
