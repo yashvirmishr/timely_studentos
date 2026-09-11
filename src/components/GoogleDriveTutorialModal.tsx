@@ -29,7 +29,7 @@ const SERVICE_CONFIG: Record<GoogleServiceType, {
   classroom: {
     label: "Google Classroom",
     apiName: "Google Classroom API",
-    api LibraryUrl: "https://console.cloud.google.com/apis/library/classroom.googleapis.com",
+    apiLibraryUrl: "https://console.cloud.google.com/apis/library/classroom.googleapis.com",
     apiEnableUrl: "https://console.cloud.google.com/apis/library/classroom.googleapis.com",
     projectHint: "Timely Classroom",
     scopeNote: "Read-only access to import assignments and coursework.",
@@ -37,7 +37,7 @@ const SERVICE_CONFIG: Record<GoogleServiceType, {
   drive: {
     label: "Google Drive",
     apiName: "Google Drive API",
-    api LibraryUrl: "https://console.cloud.google.com/apis/library/drive.googleapis.com",
+    apiLibraryUrl: "https://console.cloud.google.com/apis/library/drive.googleapis.com",
     apiEnableUrl: "https://console.cloud.google.com/apis/library/drive.googleapis.com",
     projectHint: "Timely Drive",
     scopeNote: "Access only files created by Timely (drive.file scope).",
