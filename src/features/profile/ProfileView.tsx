@@ -6,6 +6,7 @@ import { checkAiConnection, listAvailableModels } from "@/lib/local-ai";
 import { connectGoogleClassroom, disconnectGoogle, fetchAssignments, getGoogleConfig } from "@/lib/google-classroom";
 import { connectGoogleCalendar, disconnectGoogleCalendar, getGoogleCalendarConfig } from "@/lib/google-calendar";
 import { connectGoogleDrive, disconnectGoogleDrive, getGoogleDriveConfig } from "@/lib/google-drive";
+import GoogleDriveTutorialModal from "@/components/GoogleDriveTutorialModal";
 
 interface ProfileViewProps {  aiConfig: AiConfig;
   onAiConfigChange: (updates: Partial<AiConfig>) => void;
@@ -40,6 +41,7 @@ export default function ProfileView({
   const [driveConnected, setDriveConnected] = useState(false);
   const [driveBusy, setDriveBusy] = useState(false);
   const [driveError, setDriveError] = useState<string | null>(null);
+  const [showDriveTutorial, setShowDriveTutorial] = useState(false);
 
   // Local AI test state
   const [testing, setTesting] = useState(false);
@@ -184,9 +186,104 @@ export default function ProfileView({
         <div className="settings-card paper-card profile-large">
           <div className="large-avatar avatar">{preferences.profileName.slice(0, 2).toUpperCase()}</div>
           <h2>{preferences.profileName}</h2>
-          <p className="profile-subtitle">Student</p>            <button className="text-button" onClick={() => document.getElementById("profileName")?.focus()}>Edit profile <span className="material-symbols-outlined">edit</span></button>
+          <p className="profile-subtitle">Student</p>
+          <button className="text-button" onClick={() => document.getElementById("profileName")?.focus()}>Edit profile <span className="material-symbols-outlined">edit</span></button>
           <div className="profile-divider" />
-          <div className="term-row"><span>Current term</span><strong>{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</strong></div>
+          <div className="term-row">
+            <span>Current term</span>
+            {preferences.termLabel ? (
+              <strong>{preferences.termLabel}</strong>
+            ) : (
+              <strong>{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</strong>
+            )}
+          </div>
+          <div className="profile-divider" />
+          <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 14, marginTop: 4 }}>
+            <div>
+              <label className="field-label">Your name</label>
+              <input
+                type="text"
+                className="text-field"
+                value={preferences.profileName}
+                onChange={e => setPreferences({ profileName: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="field-label">Term</label>
+              <input
+                type="text"
+                className="text-field"
+                value={preferences.termLabel}
+                onChange={e => setPreferences({ termLabel: e.target.value })}
+                placeholder={new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+              />
+            </div>
+            <div>
+              <label className="field-label">Education system</label>
+              <select className="text-field" value={preferences.educationSystem} onChange={e => setPreferences({ educationSystem: e.target.value as any })}>
+                <option value="general">General</option>
+                <option value="ib">IB (International Baccalaureate)</option>
+                <option value="alevels">A-Levels</option>
+                <option value="ap">AP (Advanced Placement)</option>
+                <option value="gcse">GCSE</option>
+                <option value="cbse">CBSE</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label">
+                {preferences.educationSystem === "ib" ? "IB Year" :
+                 preferences.educationSystem === "alevels" ? "A-Level Year" :
+                 preferences.educationSystem === "ap" ? "Grade" :
+                 preferences.educationSystem === "gcse" ? "Year" :
+                 preferences.educationSystem === "cbse" ? "Class" : "Year / Grade"}
+              </label>
+              <input
+                type="text"
+                className="text-field"
+                value={preferences.schoolYear}
+                onChange={e => setPreferences({ schoolYear: e.target.value })}
+                placeholder={
+                  preferences.educationSystem === "ib" ? "e.g. DP1, MYP3" :
+                  preferences.educationSystem === "alevels" ? "e.g. Year 12, Year 13" :
+                  preferences.educationSystem === "ap" ? "e.g. 10th, 11th, 12th" :
+                  preferences.educationSystem === "gcse" ? "e.g. Year 10, Year 11" :
+                  preferences.educationSystem === "cbse" ? "e.g. Class 10, Class 12" : "e.g. Freshman, Junior"
+                }
+              />
+            </div>
+            <div>
+              <label className="field-label">Exam session</label>
+              <select className="text-field" value={preferences.examSession} onChange={e => setPreferences({ examSession: e.target.value as any })}>
+                <option value="none">Not set</option>
+                <option value="may">May / June</option>
+                <option value="november">November</option>
+                <option value="january">January</option>
+                <option value="june">June</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Daily study goal (minutes)</label>
+              <input
+                type="number"
+                className="text-field"
+                value={preferences.dailyStudyGoal || ""}
+                onChange={e => setPreferences({ dailyStudyGoal: parseInt(e.target.value) || 0 })}
+                placeholder="0"
+                min={0}
+                step={15}
+              />
+            </div>
+            <label className="check-row">
+              <input type="checkbox" checked={preferences.notifications} onChange={e => setPreferences({ notifications: e.target.checked })} />
+              <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
+              Enable notifications
+            </label>
+            <label className="check-row">
+              <input type="checkbox" checked={preferences.reduceMotion} onChange={e => setPreferences({ reduceMotion: e.target.checked })} />
+              <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
+              Reduce motion
+            </label>
+          </div>
         </div>
 
         {/* Calendars */}
@@ -198,10 +295,24 @@ export default function ProfileView({
             <div><strong>Google Calendar</strong><small>{calendarConnected ? "Connected · ready to sync" : "Connect to import events into Schedule"}</small></div>
             {calendarConnected ? <button className="text-button" onClick={() => { disconnectGoogleCalendar(); setCalendarConnected(false); }}>Disconnect</button> : <span className="material-symbols-outlined status-icon-inactive">link_off</span>}
           </div>
-          {!calendarConnected && <div className="field-row" style={{marginTop: 8}}>
-            <input className="text-field" value={calendarClientId} onChange={e => setCalendarClientId(e.target.value)} placeholder="Google OAuth Client ID" />
-            <button className="primary-button" disabled={!calendarClientId.trim() || calendarBusy} onClick={async () => { setCalendarBusy(true); setCalendarError(null); try { await connectGoogleCalendar(calendarClientId); setCalendarConnected(true); onToast?.("Google Calendar connected"); } catch (e: any) { setCalendarError(e?.message || "Calendar connection failed"); } finally { setCalendarBusy(false); } }}>{calendarBusy ? "Connecting..." : "Connect"}</button>
-          </div>}
+          {!calendarConnected && (
+            <div style={{ marginTop: 10 }}>
+              <div className="field-row">
+                <input className="text-field" value={calendarClientId} onChange={e => setCalendarClientId(e.target.value)} placeholder="Google OAuth Client ID" style={{ flex: 1 }} />
+                <button
+                  className="text-button"
+                  onClick={() => setShowDriveTutorial(true)}
+                  title="How do I get a Client ID?"
+                  style={{ padding: "6px 8px", fontSize: 12, flexShrink: 0 }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>help</span>
+                </button>
+              </div>
+              <button className="primary-button" disabled={!calendarClientId.trim() || calendarBusy} onClick={async () => { setCalendarBusy(true); setCalendarError(null); try { await connectGoogleCalendar(calendarClientId); setCalendarConnected(true); onToast?.("Google Calendar connected"); } catch (e: any) { setCalendarError(e?.message || "Calendar connection failed"); } finally { setCalendarBusy(false); } }} style={{ marginTop: 8, width: "100%" }}>
+                <span className="material-symbols-outlined">login</span> {calendarBusy ? "Connecting..." : "Connect Google Calendar"}
+              </button>
+            </div>
+          )}
           {calendarError && <small className="status-msg status-error">{calendarError}</small>}
           <div className="settings-link"><span>Calendar integrations</span><span>{calendarConnected ? "Ready to sync" : "Not connected"}</span></div>
         </div>
@@ -209,126 +320,143 @@ export default function ProfileView({
         {/* Google Classroom */}
         <div className="settings-card paper-card">
           <span className="section-kicker">Google Classroom</span>
-          <div style={{display: "flex", alignItems: "center", gap: 8}}>
-            <span className="status-dot" style={{background: dotColor(gcConnected)}} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="status-dot" style={{ background: dotColor(gcConnected) }} />
             <span className="status-label">
               {gcConnected ? `Connected as ${gcEmail || "Google"}` : "Not connected"}
             </span>
           </div>
-          <div style={{marginTop: 8}}>
-            <label className="field-label">Google Cloud Client ID</label>
-            <div className="field-row">
-              <input
-                type="text"
-                className="text-field"
-                value={gcClientId}
-                onChange={e => handleGcClientIdChange(e.target.value)}
-                placeholder="Paste your OAuth 2.0 Client ID"
-                disabled={gcConnected}
-              />
-              {!gcConnected ? (
-                <button className="primary-button" onClick={handleGcConnect} disabled={!gcClientId || gcBusy}>
-                  <span className="material-symbols-outlined">login</span> Connect Google Classroom
+          {!gcConnected ? (
+            <div style={{ marginTop: 10 }}>
+              <div className="field-row">
+                <input
+                  type="text"
+                  className="text-field"
+                  value={gcClientId}
+                  onChange={e => handleGcClientIdChange(e.target.value)}
+                  placeholder="Google OAuth Client ID"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="text-button"
+                  onClick={() => setShowDriveTutorial(true)}
+                  title="How do I get a Client ID?"
+                  style={{ padding: "6px 8px", fontSize: 12, flexShrink: 0 }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>help</span>
                 </button>
-              ) : (
-                <div style={{display: "flex", gap: 8}}>
-                  <button className="text-button" onClick={handleGcSync} disabled={gcBusy}>
-                    <span className="material-symbols-outlined">sync</span> {gcBusy ? "Syncing..." : "Sync assignments"}
-                  </button>
-                  <button className="text-button danger" onClick={handleGcDisconnect}>
-                    <span className="material-symbols-outlined">link_off</span> Disconnect
-                  </button>
-                </div>
-              )}
+              </div>
+              <button className="primary-button" onClick={handleGcConnect} disabled={!gcClientId || gcBusy} style={{ marginTop: 8, width: "100%" }}>
+                <span className="material-symbols-outlined">login</span> {gcBusy ? "Connecting..." : "Connect Google Classroom"}
+              </button>
             </div>
-          </div>
+          ) : (
+            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+              <button className="text-button" onClick={handleGcSync} disabled={gcBusy}>
+                <span className="material-symbols-outlined">sync</span> {gcBusy ? "Syncing..." : "Sync assignments"}
+              </button>
+              <button className="text-button danger" onClick={handleGcDisconnect}>
+                <span className="material-symbols-outlined">link_off</span> Disconnect
+              </button>
+            </div>
+          )}
           {gcError && <small className="status-msg status-error">{gcError}</small>}
           {gcSynced && <small className="status-msg status-success">{gcSynced}</small>}
           <p className="hint-text">
             Create a project at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>,
             enable the Classroom API, and create an OAuth 2.0 Client ID for a Web application.
-            Add <code>http://localhost:3002</code> to Authorized JavaScript origins.
+            Add <code>http://localhost:3000</code> to Authorized JavaScript origins.
           </p>
         </div>
 
         {/* Google Drive */}
         <div className="settings-card paper-card">
           <span className="section-kicker">Google Drive</span>
-          <div style={{display: "flex", alignItems: "center", gap: 8}}>
-            <span className="status-dot" style={{background: dotColor(driveConnected)}} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="status-dot" style={{ background: dotColor(driveConnected) }} />
             <span className="status-label">
               {driveConnected ? "Connected · Files sync to Drive" : "Not connected"}
             </span>
           </div>
-          <div style={{marginTop: 8}}>
-            <label className="field-label">Google Cloud Client ID</label>
-            <div className="field-row">
-              <input
-                type="text"
-                className="text-field"
-                value={driveClientId}
-                onChange={e => setDriveClientId(e.target.value)}
-                placeholder="Paste your OAuth 2.0 Client ID"
-                disabled={driveConnected}
-              />
-              {!driveConnected ? (
+          {!driveConnected ? (
+            <div style={{ marginTop: 10 }}>
+              <div className="field-row">
+                <input
+                  type="text"
+                  className="text-field"
+                  value={driveClientId}
+                  onChange={e => setDriveClientId(e.target.value)}
+                  placeholder="Google OAuth Client ID"
+                  style={{ flex: 1 }}
+                />
                 <button
-                  className="primary-button"
-                  disabled={!driveClientId.trim() || driveBusy}
-                  onClick={async () => {
-                    setDriveBusy(true);
-                    setDriveError(null);
-                    try {
-                      await connectGoogleDrive(driveClientId.trim());
-                      setDriveConnected(true);
-                      onToast?.("Google Drive connected");
-                    } catch (e: any) {
-                      setDriveError(e?.message || "Drive connection failed");
-                    } finally {
-                      setDriveBusy(false);
-                    }
-                  }}
+                  className="text-button"
+                  onClick={() => setShowDriveTutorial(true)}
+                  title="How do I get a Client ID?"
+                  style={{ padding: "6px 8px", fontSize: 12, flexShrink: 0 }}
                 >
-                  <span className="material-symbols-outlined">login</span> {driveBusy ? "Connecting..." : "Connect Google Drive"}
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>help</span>
                 </button>
-              ) : (
-                <button
-                  className="text-button danger"
-                  onClick={() => {
-                    disconnectGoogleDrive();
-                    setDriveConnected(false);
-                    onToast?.("Disconnected from Google Drive");
-                  }}
-                >
-                  <span className="material-symbols-outlined">link_off</span> Disconnect
-                </button>
-              )}
+              </div>
+              <button
+                className="primary-button"
+                disabled={!driveClientId.trim() || driveBusy}
+                onClick={async () => {
+                  setDriveBusy(true);
+                  setDriveError(null);
+                  try {
+                    await connectGoogleDrive(driveClientId.trim());
+                    setDriveConnected(true);
+                    onToast?.("Google Drive connected");
+                  } catch (e: any) {
+                    setDriveError(e?.message || "Drive connection failed");
+                  } finally {
+                    setDriveBusy(false);
+                  }
+                }}
+                style={{ marginTop: 8, width: "100%" }}
+              >
+                <span className="material-symbols-outlined">login</span> {driveBusy ? "Connecting..." : "Connect Google Drive"}
+              </button>
             </div>
-          </div>
+          ) : (
+            <div style={{ marginTop: 10 }}>
+              <button
+                className="text-button danger"
+                onClick={() => {
+                  disconnectGoogleDrive();
+                  setDriveConnected(false);
+                  onToast?.("Disconnected from Google Drive");
+                }}
+              >
+                <span className="material-symbols-outlined">link_off</span> Disconnect
+              </button>
+            </div>
+          )}
           {driveError && <small className="status-msg status-error">{driveError}</small>}
           <p className="hint-text">
             Enables cloud sync for Files. Uses <code>drive.file</code> scope — only files created by Timely are accessible.
-            Add <code>http://localhost:3002</code> to Authorized JavaScript origins in Google Cloud Console.
+            Add <code>http://localhost:3000</code> to Authorized JavaScript origins in Google Cloud Console.
           </p>
         </div>
 
         {/* Gemini API */}
         <div className="settings-card paper-card">
           <span className="section-kicker">Study Chat AI · Gemini</span>
-          <div style={{display: "flex", alignItems: "center", gap: 8}}>
-            <span className="status-dot" style={{background: dotColor(aiOnline)}} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="status-dot" style={{ background: dotColor(aiOnline) }} />
             <span className="status-label">
               {aiOnline ? `Connected · ${aiConfig.model}` : aiConfig.apiKey ? "Key saved · test to verify" : "Not connected"}
             </span>
           </div>
-          <label className="check-row" style={{marginTop: 8}}>
+          <label className="check-row" style={{ marginTop: 8 }}>
             <input type="checkbox" checked={aiConfig.enabled} onChange={e => onAiConfigChange({ enabled: e.target.checked })} />
             <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
             Enable Gemini
           </label>
           {aiConfig.enabled && (
-            <>
-              <div style={{marginTop: 10}}>
+            <div style={{ marginTop: 10 }}>
+              <div>
                 <label className="field-label">Gemini API key</label>
                 <input
                   type="password"
@@ -339,7 +467,7 @@ export default function ProfileView({
                   autoComplete="off"
                 />
               </div>
-              <div style={{marginTop: 8}}>
+              <div style={{ marginTop: 8 }}>
                 <label className="field-label">Model</label>
                 <select className="text-field" value={aiConfig.model} onChange={e => onAiConfigChange({ model: e.target.value })}>
                   {modelsLoading && <option>Loading models...</option>}
@@ -359,7 +487,7 @@ export default function ProfileView({
                   }
                 </small>
               </div>
-              <button className="text-button" onClick={handleTestAi} disabled={testing || !aiConfig.apiKey} style={{marginTop: 10}}>
+              <button className="text-button" onClick={handleTestAi} disabled={testing || !aiConfig.apiKey} style={{ marginTop: 10 }}>
                 <span className="material-symbols-outlined">{testing ? "hourglass_top" : "network_ping"}</span>
                 {testing ? "Testing..." : "Test Gemini key"}
               </button>
@@ -368,48 +496,15 @@ export default function ProfileView({
                   {testResult}
                 </small>
               )}
-            </>
+            </div>
           )}
           <p className="hint-text">
             Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.
             Key is stored locally in your browser only. Billing: <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener">ai.google.dev/pricing</a>.
           </p>
         </div>
-
-        {/* Preferences */}
-        <div className="settings-card paper-card">
-          <span className="section-kicker">Preferences</span>
-          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-            <label className="check-row">
-              <input type="checkbox" checked={preferences.notifications} onChange={e => setPreferences({ notifications: e.target.checked })} />
-              <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
-              Enable notifications
-            </label>
-            <label className="check-row">
-              <input type="checkbox" checked={preferences.reduceMotion} onChange={e => setPreferences({ reduceMotion: e.target.checked })} />
-              <span className="fake-checkbox"><span className="material-symbols-outlined">check</span></span>
-              Reduce motion
-            </label>
-            <div style={{ marginTop: 8 }}>
-              <label className="field-label">Theme</label>
-              <select className="text-field" value={preferences.theme} onChange={e => setPreferences({ theme: e.target.value as any })}>
-                <option value="paper">Paper (light)</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <label className="field-label">Your name</label>
-              <input
-                type="text"
-                className="text-field"
-                value={preferences.profileName}
-                onChange={e => setPreferences({ profileName: e.target.value })}
-              />
-            </div>
-          </div>
-        </div>
       </div>
+      {showDriveTutorial && <GoogleDriveTutorialModal onClose={() => setShowDriveTutorial(false)} />}
     </div>
   );
 }

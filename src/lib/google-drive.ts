@@ -52,7 +52,7 @@ function loadGoogleIdentity(): Promise<void> {
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load Google sign-in."));
+    script.onerror = () => reject(new Error("Could not load Google sign-in. Check if an ad blocker is blocking accounts.google.com, or try a different browser."));
     document.head.appendChild(script);
   });
 }
