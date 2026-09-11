@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { probeOnboarding } from "@/lib/supabase/sync";
+import { schemaDriftMessage } from "@/lib/supabase/schema";
 import { useTimelyStore } from "@/lib/store";
 import type { Subject, ClassEvent, Preferences } from "@/lib/types";
 
@@ -39,6 +41,10 @@ export default function OnboardingPage() {
     useTimelyStore();
   const [step, setStep] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
+  // A failed "has this account finished setup?" check must never be read as
+  // "not finished" — that is exactly how an account gets trapped on this screen.
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [columnMissing, setColumnMissing] = useState(false);
 
   // Step 1: Profile
   const [profileName, setProfileName] = useState("");
@@ -62,12 +68,13 @@ export default function OnboardingPage() {
       }
       // An account that already finished setup should never see this form
       // again — its source of truth is the profile row, not a browser flag.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("onboarded")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (profile?.onboarded) {
+      const probe = await probeOnboarding(session.user.id);
+
+      if (probe.error) setCheckError(probe.error);
+      setColumnMissing(!probe.columnPresent);
+
+      // Only a definitive "no" may keep the user here.
+      if (probe.columnPresent && probe.onboarded) {
         router.replace("/");
         return;
       }
@@ -162,7 +169,7 @@ export default function OnboardingPage() {
   const progress = ((step + 1) / totalSteps) * 100;
 
   return (
-    <div className="onb-shell">
+    <div className="onb-shell" data-theme={theme}>
       {/* Background doodles */}
       <svg className="onb-bg-doodle onb-bg-doodle--1" viewBox="0 0 120 120" fill="none" stroke="currentColor" strokeWidth="1.2">
         <circle cx="60" cy="60" r="50" strokeDasharray="4 6"/>
@@ -257,6 +264,7 @@ export default function OnboardingPage() {
               placeholder="Your name"
               value={profileName}
               onChange={(e) => setProfileName(e.target.value)}
+              required
               autoFocus
             />
 
@@ -276,7 +284,7 @@ export default function OnboardingPage() {
 
             <div className="onb-nav">
               <button className="onb-btn-secondary" onClick={() => setStep(0)}>Back</button>
-              <button className="onb-btn-primary" onClick={() => setStep(2)}>Next</button>
+              <button className="onb-btn-primary" onClick={() => setStep(2)} disabled={!profileName.trim()}>Next</button>
             </div>
           </div>
         )}
