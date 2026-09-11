@@ -29,7 +29,7 @@ export default function NotificationPopover({ notifications, onNotificationClick
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="notification-popover show">
+    <div className="notification-popover show" style={{ willChange: "transform, opacity" }}>
       <div className="popover-heading">
         <strong>Notifications</strong>
         <button className="text-button" onClick={onMarkAllRead} disabled={unreadCount === 0}>

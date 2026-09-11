@@ -17,3 +17,4 @@ package-lock.json
 !.github/ISSUE_TEMPLATE/*.md
 References/
 .env*
+!.env.example

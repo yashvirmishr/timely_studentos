@@ -4,7 +4,8 @@ An AI-powered academic operating system for students, built with [Tauri](https:/
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Tauri 2](https://img.shields.io/badge/Tauri-2-blue)
-![Next.js 14](https://img.shields.io/badge/Next.js-14-black)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-black)
+![React 19](https://img.shields.io/badge/React-19-blue)
 
 ## Features
 
@@ -16,9 +17,10 @@ An AI-powered academic operating system for students, built with [Tauri](https:/
 - **Notes Library** — pin, organize, and optionally AI-summarize your notes
 - **Files Manager** — keep important documents linked to subjects
 - **Analytics** — see completion rates, workload distribution, and productivity insights
-- **Pomodoro Timer** — built-in focus timer with notifications
+- **Pomodoro Timer** — built-in focus timer with fullscreen focus mode and notifications
 - **Search** — fuzzy search across tasks, classes, notes, and files
 - **Notifications** — contextual alerts for deadlines and events
+- **Cloud Sync** — optional Supabase backend for syncing data across devices
 - **Auto-Updates** — desktop app updates itself via GitHub Releases
 - **Dark / Light / Paper themes** — switch to whatever feels best
 
@@ -27,9 +29,10 @@ An AI-powered academic operating system for students, built with [Tauri](https:/
 | Layer | Technology |
 |-------|------------|
 | Shell | Tauri 2 (Rust) |
-| Frontend | Next.js 14, React 18, TypeScript |
-| Styling | Tailwind CSS |
-| State | Zustand (persisted to localStorage) |
+| Frontend | Next.js 16, React 19, TypeScript |
+| Styling | Custom CSS |
+| State | Zustand 5 (persisted to localStorage + optional Supabase) |
+| Backend | Supabase (optional — for cloud sync) |
 | AI | Google Gemini Generative Language API (client-side) |
 | Bundler | Next.js static export → Tauri webview |
 
@@ -67,21 +70,23 @@ The resulting installer is written to `src-tauri/target/release/bundle/`.
 | Setting | Location | Description |
 |---------|----------|-------------|
 | Gemini API key | Profile → Gemini | Enables the AI assistant and timetable scanner |
-| AI model | Profile → Gemini | Default: `gemini-1.5-flash` |
+| AI model | Profile → Gemini | Default: `gemini-2.5-flash-preview-05-20` |
 | Theme | Profile → Preferences | `paper`, `light`, or `dark` |
 | Google Calendar | Profile → Integrations | OAuth connection for calendar sync |
 | Google Classroom | Profile → Integrations | Syncs assignments into the Academics view |
+| Google Drive | Profile → Integrations | Cloud sync for Files |
+| Supabase | Environment variables | Optional cloud sync across devices |
 
-All configuration is stored **locally in your browser** (via Zustand + localStorage). Nothing is sent to any server other than Google's APIs when you explicitly connect.
+All configuration is stored **locally in your browser** (via Zustand + localStorage). When Supabase is configured, data syncs across your devices. Nothing is sent to any server other than Google's APIs and your own Supabase instance when you explicitly connect.
 
 ## Project Structure
 
 ```
 ├── src/
-│   ├── app/            # Next.js page & layout
-│   ├── components/     # Shared UI (Sidebar, Topbar, Modals, etc.)
-│   ├── features/       # Feature modules (home, schedule, academics, …)
-│   └── lib/            # Types, store, utilities, AI helpers
+│   ├── app/            # Next.js pages, layouts, API routes
+│   ├── components/     # Shared UI (Sidebar, Topbar, Modals, FocusMode, etc.)
+│   ├── features/       # Feature modules (home, schedule, academics, profile)
+│   └── lib/            # Types, store, utilities, AI helpers, Supabase client
 ├── src-tauri/          # Tauri Rust shell
 ├── public/             # Static assets
 ├── scripts/            # Setup / test helpers

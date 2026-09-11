@@ -836,7 +836,7 @@ export default function AppPage() {
             </button>
           </div>
         )}
-        <div className="page-content">
+        <div className="page-content" style={{ willChange: "transform, opacity" }}>
           {currentView === "home" && (
             <HomeView
               onNavigate={setView}

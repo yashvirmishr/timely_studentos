@@ -98,8 +98,8 @@ export default function SearchModal({ onClose, onNavigate, tasks, classes, notes
   }, [query, tasks, classes, notes, files]);
 
   return (
-    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal search-modal" role="dialog" aria-modal="true" aria-label="Search">
+    <div className="modal-backdrop" ref={trapRef as React.RefObject<HTMLDivElement>} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ willChange: "opacity" }}>
+      <div className="modal search-modal" role="dialog" aria-modal="true" aria-label="Search" style={{ willChange: "transform, opacity" }}>
         <div className="search-modal-input" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <span className="material-symbols-outlined" style={{ color: '#777871' }}>search</span>
           <input

@@ -386,7 +386,7 @@ export default function FilesView({ files, onAddFile, onDeleteFile, onUpdateFile
           </>
         )}
       </div>
-      {showDriveTutorial && <GoogleDriveTutorialModal onClose={() => setShowDriveTutorial(false)} />}
+      {showDriveTutorial && <GoogleDriveTutorialModal type="drive" onClose={() => setShowDriveTutorial(false)} />}
     </div>
   );
 }

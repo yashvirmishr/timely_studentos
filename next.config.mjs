@@ -38,13 +38,11 @@ const CSP_DIRECTIVES = [
 
 const nextConfig = {
   images: { unoptimized: true },
-  output: 'standalone',
+  // No 'output: standalone' — Vercel builds Next.js natively; standalone is only
+  // for self-hosted/Docker deployments. No server actions exist, so no
+  // experimental.serverActions tuning either.
+  poweredByHeader: false,
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
   headers: async () => [
     {
       source: '/(.*)',
