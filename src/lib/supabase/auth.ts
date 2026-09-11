@@ -7,7 +7,7 @@ import { useTimelyStore } from '@/lib/store';
 export function useSupabaseSync() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { userId, setUserId, syncWithSupabase, pullOnlyFromSupabase } = useTimelyStore();
+  const { userId, setUserId, pullOnlyFromSupabase } = useTimelyStore();
   const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -18,9 +18,7 @@ export function useSupabaseSync() {
       
       if (session?.user) {
         const newId = session.user.id;
-        // If a different user was logged in before, clear old data first
         if (prevUserIdRef.current && prevUserIdRef.current !== newId) {
-          // Reset store to empty state for new user
           useTimelyStore.setState({
             tasks: [],
             classes: [],
@@ -33,7 +31,6 @@ export function useSupabaseSync() {
         }
         prevUserIdRef.current = newId;
         setUserId(newId);
-        // Only pull — don't push stale localStorage data under the new user
         await pullOnlyFromSupabase();
       }
       
@@ -75,18 +72,28 @@ export function useSupabaseSync() {
       setError(err.message);
       setIsLoading(false);
     });
-  }, [setUserId, syncWithSupabase, pullOnlyFromSupabase]);
+  }, [setUserId, pullOnlyFromSupabase]);
 
   return { isLoading, error, userId };
 }
 
-export async function signInWithEmail(email: string) {
+export async function signUpWithEmail(email: string, password: string) {
   const supabase = createClient();
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await supabase.auth.signUp({
     email,
+    password,
     options: {
       emailRedirectTo: `${window.location.origin}/auth/callback`,
     },
+  });
+  return { error };
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  const supabase = createClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
   });
   return { error };
 }
